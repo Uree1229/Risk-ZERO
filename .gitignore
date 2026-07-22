@@ -1,0 +1,10 @@
+tmp/
+work/
+**/node_modules/
+**/.expo/
+**/.wrangler/
+**/.next/
+**/dist/
+*.log
+.env
+.env.local

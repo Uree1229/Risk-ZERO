@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1784739428387,
+      "tag": "0000_confused_sleepwalker",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1784741289716,
+      "tag": "0001_daily_sinister_six",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784741290766,
+      "tag": "0002_demo_seed",
+      "breakpoints": true
+    }
+  ]
+}

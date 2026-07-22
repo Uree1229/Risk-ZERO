@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "RISK-ZERO",
+    "slug": "risk-zero-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.pixelzero.riskzero"
+    },
+    "android": {
+      "package": "com.pixelzero.riskzero",
+      "edgeToEdgeEnabled": true
+    }
+  }
+}
