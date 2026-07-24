@@ -12,6 +12,7 @@
 - `Document/`: 제안서와 발표자료, 아래 Markdown 초안
   - [운영·데이터·위험 대응 정책 v0.2](Document/RISK-ZERO_Policy_Document_초안_v0.2.md)
   - [위험도 산정 및 검증 방안 v0.1](Document/RISK-ZERO_위험도_산정_및_검증_방안_초안_v0.1.md)
+  - [시나리오 및 Use Case 정의서 v0.1](Document/RISK-ZERO_시나리오_Use_Case_정의서_v0.1.md)
 
 아직 실제 위험도 계산식은 구현하지 않았습니다. `DemoPassThroughRiskEngine`이 고정 시연 결과만 전달하며, 새로 들어온 실제 센서 사건은 `pending`으로 저장됩니다. 카메라, 실제 보호자 알림, 도어락 제어, 112 신고도 실행하지 않고 화면 미리보기만 제공합니다.
 
