@@ -1,6 +1,6 @@
 > **CAPSTONE DESIGN · USE CASE DRAFT**
 
-# RISK-ZERO 시나리오 및 Use Case 정의서
+# RISK-ZERO 시나리오 및 Use Case
 
 - **문서 소유:** Pixel-Zero 팀
 - **적용 범위:** 센서 이벤트 · 위험도 평가 · 웹/모바일 모니터링 · 사용자 피드백
