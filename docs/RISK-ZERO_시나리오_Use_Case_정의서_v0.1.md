@@ -600,5 +600,5 @@ DB는 자유로운 metric 추가를 지원하지만, 손잡이·인증 실패 �
 
 - [RISK-ZERO 위험도 산정 및 검증 방안](RISK-ZERO_위험도_산정_및_검증_방안_초안_v0.1.md)
 - [RISK-ZERO 운영·데이터·위험 대응 정책](RISK-ZERO_Policy_Document_초안_v0.2.md)
-- [데이터베이스 설계](../docs/database-design.md)
+- [데이터베이스 설계](database-design.md)
 - [데이터 API 명세](../web/docs/api.md)
