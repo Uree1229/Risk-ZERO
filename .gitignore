@@ -5,6 +5,7 @@ work/
 **/.wrangler/
 **/.next/
 **/dist/
+mobile/android/
 *.log
 .env
 .env.local

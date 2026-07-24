@@ -11,7 +11,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { API_BASE_URL, getSnapshot } from "./src/api";
+import { API_BASE_URL, API_CONFIGURED, getSnapshot } from "./src/api";
 import type { RiskLevel, SensorReading, SystemSnapshot } from "./src/types";
 
 type TabId = "home" | "events" | "settings";
@@ -183,8 +183,12 @@ function SettingsScreen({ source }: { source: "api" | "fallback" }) {
       <View style={styles.settingsCard}>{rows.map(([label, value]) => <View style={styles.settingRow} key={label}><Text style={styles.settingLabel}>{label}</Text><Text style={styles.settingValue}>{value}</Text></View>)}</View>
       <View style={styles.apiCard}>
         <Text style={styles.integrationTitle}>API 주소</Text>
-        <Text style={styles.apiUrl}>{API_BASE_URL}</Text>
-        <Text style={styles.integrationCopy}>실제 휴대폰에서는 EXPO_PUBLIC_API_BASE_URL을 개발 PC의 같은 Wi-Fi 주소로 설정하세요.</Text>
+        <Text style={styles.apiUrl}>{API_CONFIGURED ? API_BASE_URL : "미설정 · OFFLINE DEMO"}</Text>
+        <Text style={styles.integrationCopy}>
+          {API_CONFIGURED
+            ? "설정된 웹 API를 우선 사용하며 연결에 실패하면 내장 시연 데이터로 전환합니다."
+            : "배포 APK는 서버 없이 바로 실행되도록 내장 시연 데이터를 사용합니다. 실제 연동 빌드에서는 EXPO_PUBLIC_API_BASE_URL을 지정하세요."}
+        </Text>
       </View>
       <View style={styles.policyCard}>
         <Text style={styles.integrationTitle}>시연 안전 원칙</Text>

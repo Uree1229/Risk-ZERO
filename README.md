@@ -61,6 +61,14 @@ pnpm dev
 
 ## 모바일 실행
 
+### APK 바로 설치
+
+[RISK-ZERO Mobile v0.1.0 APK 다운로드](https://github.com/Uree1229/Risk-ZERO/releases/download/mobile-v0.1.0/RISK-ZERO-v0.1.0.apk)
+
+Android에서 파일을 내려받은 뒤 설치하면 서버 없이 `OFFLINE DEMO` 모드로 바로 실행됩니다. Android가 설치를 차단하면 브라우저 또는 파일 앱의 `알 수 없는 앱 설치` 권한을 이번 설치에만 허용해야 합니다.
+
+### 개발 모드
+
 ```powershell
 cd mobile
 pnpm install

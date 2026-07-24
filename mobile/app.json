@@ -4,7 +4,6 @@
     "slug": "risk-zero-mobile",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -12,7 +11,7 @@
     },
     "android": {
       "package": "com.pixelzero.riskzero",
-      "edgeToEdgeEnabled": true
+      "versionCode": 1
     }
   }
 }

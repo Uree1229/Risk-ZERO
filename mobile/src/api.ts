@@ -1,6 +1,7 @@
 import type { RiskLevel, SystemSnapshot } from "./types";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:3001";
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "";
+const API_CONFIGURED = API_BASE_URL.length > 0;
 
 const scenarioFixtures: Record<string, { label: string; score: number; level: Exclude<RiskLevel, "pending">; dwell: number; vibration: number; summary: string; reasons: string[] }> = {
   normal: { label: "정상 방문", score: 14, level: "normal", dwell: 7, vibration: 0, summary: "정상적인 짧은 방문으로 표시된 더미 결과입니다.", reasons: ["짧은 체류", "진동 없음"] },
@@ -38,6 +39,10 @@ function fallbackSnapshot(scenarioId: string): SystemSnapshot {
 }
 
 export async function getSnapshot(scenarioId: string): Promise<{ snapshot: SystemSnapshot; source: "api" | "fallback" }> {
+  if (!API_CONFIGURED) {
+    return { snapshot: fallbackSnapshot(scenarioId), source: "fallback" };
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 1800);
   try {
@@ -51,4 +56,4 @@ export async function getSnapshot(scenarioId: string): Promise<{ snapshot: Syste
   }
 }
 
-export { API_BASE_URL };
+export { API_BASE_URL, API_CONFIGURED };
