@@ -1,6 +1,6 @@
 # Component Diagram
 
-센서 입력부터 DB 저장, 웹·모바일 모니터링과 데모 fallback까지의 실행 컴포넌트를 보여줍니다.
+하드웨어의 후처리 결과부터 모바일 로컬 저장·알림, 웹 개발 API까지의 컴포넌트를 보여줍니다.
 
 ![RISK-ZERO Component Diagram](02-component-diagram.png)
 
@@ -8,50 +8,49 @@
 
 ```mermaid
 flowchart LR
-    Sensor["외부 센서·게이트웨이"]
-    Browser["웹 브라우저"]
-    Mobile["모바일 MVP"]
+    HW["하드웨어<br/>분석·영상 후처리"]
+    User["거주자·보호자"]
 
-    subgraph RiskZero["RISK-ZERO 시스템"]
-        SensorController["센서 이벤트 API"]
-        Validator["Payload Validator"]
-        IncidentController["사건·장치 API"]
-        FeedbackController["피드백 API"]
-        SnapshotController["Snapshot API"]
-
-        Repository["Data Repository"]
-        D1[("Cloudflare D1")]
-
-        DemoGateway["DemoSensorGateway"]
-        DemoEngine["DemoPassThroughRiskEngine"]
-        Dashboard["Web Dashboard"]
-        MobileFallback["Mobile Fixture"]
-        RiskInterface["RiskEngine Interface"]
+    subgraph Mobile["모바일 MVP"]
+        Gateway["ModuleGateway<br/>실제 어댑터 대기"]
+        Buffer["Event Buffer"]
+        Sync["Sync Service"]
+        Files[("앱 영상 저장소")]
+        SQLite[("SQLite v3")]
+        Risk["RiskEngine 자리<br/>DEMO 또는 pending"]
+        Alerts["Local Notifications"]
+        Views["홈·캘린더·상세·설정"]
     end
 
-    Sensor -->|"POST /api/sensor-events"| SensorController
-    SensorController --> Validator
-    Validator --> Repository
+    subgraph Web["개발·시연 웹"]
+        SensorAPI["Sensor Event API"]
+        Validator["Payload Validator"]
+        Repo["Data Repository"]
+        D1[("Cloudflare D1")]
+        Snapshot["Snapshot API"]
+        Demo["Demo Runtime"]
+        Dashboard["Web Dashboard"]
+    end
 
-    Browser --> Dashboard
-    Dashboard -->|"GET /api/snapshot"| SnapshotController
-    Mobile -->|"GET /api/snapshot"| SnapshotController
+    HW -. "수치 + 후처리 영상" .-> Gateway
+    Gateway --> Buffer
+    Buffer --> Sync
+    Sync --> Files
+    Sync --> SQLite
+    SQLite --> Risk
+    Risk --> Alerts
+    SQLite --> Views
+    Files --> Views
+    Alerts --> User
+    User --> Views
 
-    Browser --> IncidentController
-    Browser --> FeedbackController
-
-    IncidentController --> Repository
-    FeedbackController --> Repository
-    SnapshotController --> Repository
-    Repository --> D1
-
-    SnapshotController -. "D1 사용 불가" .-> DemoGateway
-    DemoGateway --> DemoEngine
-    DemoEngine --> SnapshotController
-
-    Mobile -. "API 연결 실패" .-> MobileFallback
-    RiskInterface -. "실제 구현체 미정" .-> Repository
+    HW -. "개발용 HTTPS" .-> SensorAPI
+    SensorAPI --> Validator
+    Validator --> Repo
+    Repo --> D1
+    D1 --> Snapshot
+    Snapshot -. "DB 불가" .-> Demo
+    Snapshot --> Dashboard
 ```
 
-> [!IMPORTANT]
-> 실제 센서 사건은 DB에 저장되지만 활성 위험도 엔진이 없어 `pending`으로 남습니다. 현재 점수는 `DemoPassThroughRiskEngine`의 고정 시연 값입니다.
+실제 위험도 엔진은 아직 없습니다. 모바일 기기 알림은 앱이 사건을 받은 뒤 동작하며, 원격 보호자 푸시나 앱 종료 상태의 하드웨어 수신을 대신하지 않습니다.

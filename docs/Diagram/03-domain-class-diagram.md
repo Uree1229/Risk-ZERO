@@ -1,6 +1,6 @@
 # Domain/Class Diagram
 
-`web/lib/domain.ts`의 도메인 객체와 현재 데모 구현체의 관계를 보여줍니다.
+모바일 v0.2.0의 모듈·사건·영상·평가·분류·알림 객체 관계를 중심으로 보여줍니다.
 
 ![RISK-ZERO Domain Class Diagram](03-domain-class-diagram.png)
 
@@ -8,64 +8,73 @@
 
 ```mermaid
 classDiagram
-    class SensorGateway {
+    class ModuleGateway {
         <<interface>>
-        +getLatest() Promise~SensorEvent~
+        +getDevice()
+        +pullEvents(afterSequence, limit)
+        +acknowledgeThrough(sequence)
     }
 
-    class RiskEngine {
-        <<interface>>
-        +evaluate(event) Promise~RiskAssessment~
-    }
-
-    class ResponsePlanner {
-        <<interface>>
-        +plan(assessment) Promise~ResponsePlan~
-    }
-
-    class DemoSensorGateway {
-        -scenario
-        +getLatest() Promise~SensorEvent~
-    }
-
-    class DemoPassThroughRiskEngine {
-        -scenario
-        +evaluate(event) Promise~RiskAssessment~
-    }
-
-    class SensorEvent {
+    class ModuleEvent {
         +string id
-        +number sequence
-        +string capturedAt
-        +SensorSource source
-        +SensorReading[] readings
-    }
-
-    class SensorSource {
-        +string provider
         +string deviceId
-        +string transport
+        +number sequence
+        +string dedupeKey
+        +string capturedAt
+        +ProcessedMetric[] metrics
+        +ProcessedVideoFile video
     }
 
-    class SensorReading {
-        +string id
+    class ProcessedMetric {
         +string metric
-        +string label
-        +SensorValue value
+        +number value
         +string unit
         +string quality
-        +string capturedAt
+    }
+
+    class ProcessedVideoFile {
+        +string localUri
+        +number sizeBytes
+        +number durationMs
+        +string checksumSha256
+    }
+
+    class Incident {
+        +string id
+        +RiskLevel maxRiskLevel
+        +number maxRiskScore
+        +string startedAt
     }
 
     class RiskAssessment {
-        +string status
-        +string engine
-        +null algorithmVersion
+        +string engineName
+        +string engineVersion
         +number score
         +RiskLevel level
-        +string summary
+        +boolean isDummy
         +string[] reasons
-        +string evaluatedAt
+    }
+
+    class EventReview {
+        +EventCategory category
+        +boolean isFalseAlarm
+        +boolean isImportant
+        +string memo
+    }
+
+    class NotificationDelivery {
+        +string eventId
+        +RiskLevel riskLevel
+        +string status
+        +string notificationIdentifier
+    }
+
+    class DeviceSummary {
+        +string id
+        +string transport
+        +number batteryPercent
+        +number storageUsedBytes
+        +string syncStatus
     }
 
     class RiskLevel {
@@ -77,69 +86,16 @@ classDiagram
         critical
     }
 
-    class ResponsePlan {
-        +string status
-        +ResponseAction[] actions
-        +string message
-    }
-
-    class ResponseAction {
-        <<enumeration>>
-        standby
-        local_alert
-        camera_preview
-        guardian_notice
-        confirm_emergency_call
-    }
-
-    class SystemSnapshot {
-        +string mode
-        +string scenarioId
-        +string scenarioLabel
-        +string generatedAt
-        +SensorEvent sensorEvent
-        +RiskAssessment assessment
-        +ResponsePlan response
-        +PipelineStage[] pipeline
-        +EventLogItem[] recentEvents
-    }
-
-    class PipelineStage {
-        +string id
-        +string label
-        +string detail
-        +string state
-    }
-
-    class EventLogItem {
-        +string id
-        +string occurredAt
-        +string title
-        +string detail
-        +RiskLevel level
-        +number score
-    }
-
-    DemoSensorGateway ..|> SensorGateway
-    DemoPassThroughRiskEngine ..|> RiskEngine
-
-    SensorGateway ..> SensorEvent : returns
-    RiskEngine ..> SensorEvent : input
-    RiskEngine ..> RiskAssessment : returns
-    ResponsePlanner ..> RiskAssessment : input
-    ResponsePlanner ..> ResponsePlan : returns
-
-    SensorEvent *-- SensorSource
-    SensorEvent *-- "1..*" SensorReading
+    ModuleGateway ..> ModuleEvent : returns
+    ModuleEvent *-- "1..*" ProcessedMetric
+    ModuleEvent o-- "0..1" ProcessedVideoFile
+    Incident *-- "1..*" ModuleEvent
+    Incident *-- "0..*" RiskAssessment
+    ModuleEvent o-- "0..1" EventReview
+    ModuleEvent o-- "0..1" NotificationDelivery
     RiskAssessment --> RiskLevel
-    ResponsePlan --> "1..*" ResponseAction
-
-    SystemSnapshot *-- SensorEvent
-    SystemSnapshot *-- RiskAssessment
-    SystemSnapshot *-- ResponsePlan
-    SystemSnapshot *-- "1..*" PipelineStage
-    SystemSnapshot *-- "0..*" EventLogItem
+    NotificationDelivery --> RiskLevel
+    DeviceSummary ..> ModuleGateway : identifies
 ```
 
-> [!NOTE]
-> `ResponsePlanner`는 인터페이스만 있고 구현체가 없습니다. `SensorGateway`와 `RiskEngine`은 현재 데모 구현체만 존재합니다.
+`EventReview`는 사용자의 로컬 분류이고 검증용 정답 라벨과 동일하지 않습니다. `RiskAssessment.engineVersion`은 실제 계산식이 확정되기 전까지 비어 있습니다.

@@ -1,4 +1,4 @@
-# RISK-ZERO MVP
+# RISK-ZERO MVP v0.2.0
 
 현관 하드웨어의 후처리 결과, 데이터 저장, 위험도 판정, 웹·모바일 모니터링을 느슨하게 분리한 캡스톤 디자인 시제품입니다.
 
@@ -11,12 +11,13 @@
 - `docs/database-design.md`: ERD, 센서 확장 모델, 보존기간과 조회 흐름
 - `docs/module-sync.md`: 모듈 임시 버퍼, 이벤트 순번, ACK와 재연결 규칙
 - `docs/`: 제안서·발표자료와 아래 설계 문서
-  - [운영·데이터·위험 대응 정책 v0.2](docs/RISK-ZERO_Policy_Document_초안_v0.2.md)
-  - [위험도 산정 및 검증 방안 v0.1](docs/RISK-ZERO_위험도_산정_및_검증_방안_초안_v0.1.md)
-  - [시나리오 및 Use Case 정의서 v0.1](docs/RISK-ZERO_시나리오_Use_Case_정의서_v0.1.md)
+  - [운영·데이터·위험 대응 정책 v0.3](docs/RISK-ZERO_Policy_Document_초안_v0.2.md)
+  - [위험도 산정 및 검증 방안 v0.2](docs/RISK-ZERO_위험도_산정_및_검증_방안_초안_v0.1.md)
+  - [시나리오 및 Use Case 정의서 v0.2](docs/RISK-ZERO_시나리오_Use_Case_정의서_v0.1.md)
   - [소프트웨어 다이어그램 7종](docs/Diagram/README.md)
+  - [현재 구현 현황](docs/implementation-status.md)
 
-아직 실제 위험도 계산식은 구현하지 않았습니다. `DemoPassThroughRiskEngine`이 고정 시연 결과만 전달하며, 새로 들어온 실제 센서 사건은 `pending`으로 저장됩니다. 카메라, 실제 보호자 알림, 도어락 제어, 112 신고도 실행하지 않고 화면 미리보기만 제공합니다.
+아직 실제 위험도 계산식과 하드웨어 통신 어댑터는 구현하지 않았습니다. `DemoPassThroughRiskEngine`이 고정 시연 결과만 전달하며, 실제 모듈 사건은 계산식이 연결되기 전까지 `pending`으로 저장됩니다. 모바일 기기 내부 알림은 구현했지만 원격 푸시, 도어락 제어, 112 신고는 실행하지 않습니다.
 
 ## 구조
 
@@ -72,9 +73,11 @@ pnpm dev
 
 ### APK 바로 설치
 
-[RISK-ZERO Mobile v0.1.0 APK 다운로드](https://github.com/Uree1229/Risk-ZERO/releases/download/mobile-v0.1.0/RISK-ZERO-v0.1.0.apk)
+[RISK-ZERO Mobile v0.2.0 APK 다운로드](https://github.com/Uree1229/Risk-ZERO/releases/download/mobile-v0.2.0/RISK-ZERO-v0.2.0.apk)
 
 Android에서 파일을 내려받은 뒤 설치하면 서버 없이 `OFFLINE DEMO` 모드로 바로 실행됩니다. Android가 설치를 차단하면 브라우저 또는 파일 앱의 `알 수 없는 앱 설치` 권한을 이번 설치에만 허용해야 합니다.
+
+v0.2.0은 Android `versionCode 3`입니다. 새 태그를 푸시하면 GitHub Actions가 release APK를 빌드해 같은 버전의 GitHub Release에 첨부합니다.
 
 ### 개발 모드
 

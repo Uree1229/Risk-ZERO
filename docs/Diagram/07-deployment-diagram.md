@@ -1,6 +1,6 @@
 # Deployment Diagram
 
-현관 센서, 웹 브라우저, Expo 모바일 앱과 Sites·Cloudflare Worker·D1의 배치 관계를 보여줍니다.
+현관 모듈, Android 앱의 로컬 저장소, 개발용 웹 Worker·D1의 배치 관계를 보여줍니다.
 
 ![RISK-ZERO Deployment Diagram](07-deployment-diagram.png)
 
@@ -8,33 +8,41 @@
 
 ```mermaid
 flowchart TB
-    subgraph Devices["사용자·장치 환경"]
-        SensorDevice["현관 센서 장치<br/>HTTP / 향후 MQTT·BLE"]
-        Browser["웹 브라우저"]
-        Phone["모바일 기기<br/>Expo 앱"]
+    subgraph Entrance["현관 하드웨어"]
+        Sensors["센서"]
+        Processor["분석·영상 후처리"]
+        Buffer["임시 이벤트·영상 버퍼"]
+        Sensors --> Processor
+        Processor --> Buffer
     end
 
-    subgraph Hosting["Sites / Cloudflare 실행 환경"]
-        Worker["vinext Cloudflare Worker"]
-        Router["Next App Router"]
-        WebUI["Dashboard"]
-        APIs["REST API Routes"]
-        ImageRuntime["Assets / Image Runtime"]
-        D1[("Cloudflare D1<br/>DB binding")]
+    subgraph Phone["사용자 Android 기기"]
+        APK["RISK-ZERO APK v0.2.0"]
+        Gateway["BLE/Wi-Fi Gateway<br/>구현 대기"]
+        SQLite[("SQLite v3")]
+        Files[("앱 영상 저장소<br/>기본 한도 500MB")]
+        OS["Android Notifications"]
+
+        APK --> Gateway
+        APK --> SQLite
+        APK --> Files
+        APK --> OS
     end
 
-    SensorDevice -->|"HTTPS POST<br/>sensor-events"| Worker
-    Browser -->|"HTTPS"| Worker
-    Phone -->|"EXPO_PUBLIC_API_BASE_URL"| Worker
+    subgraph Cloud["개발·시연 웹"]
+        Worker["Cloudflare Worker"]
+        WebUI["Web Dashboard"]
+        APIs["REST API"]
+        D1[("Cloudflare D1")]
+        Worker --> WebUI
+        Worker --> APIs
+        APIs --> D1
+    end
 
-    Worker --> Router
-    Worker --> ImageRuntime
-    Router --> WebUI
-    Router --> APIs
-    APIs --> D1
-
-    WebUI -->|"브라우저 API 요청"| APIs
+    Buffer -. "수치 + 후처리 영상" .-> Gateway
+    APK -. "선택적 Snapshot API" .-> Worker
+    Browser["웹 브라우저"] --> Worker
+    Processor -. "개발용 HTTPS 센서 API" .-> Worker
 ```
 
-> [!NOTE]
-> `.openai/hosting.json`은 D1 binding 이름을 `DB`로 지정합니다. 실제 센서와 모바일 앱은 배포된 Worker의 HTTPS API 주소를 사용해야 합니다.
+모바일 MVP는 서버가 없어도 OFFLINE DEMO로 실행됩니다. 실제 하드웨어 통신, 사용자·장치 인증, 원격 푸시, 112 신고와 도어락 제어는 배치에 포함하지 않았습니다.

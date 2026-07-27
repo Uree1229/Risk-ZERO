@@ -73,4 +73,10 @@ jobs:
         run: |
           gh release create "${GITHUB_REF_NAME}" "artifacts/RISK-ZERO-v${{ steps.app.outputs.version }}.apk" \
             --title "RISK-ZERO Mobile v${{ steps.app.outputs.version }}" \
-            --notes "캡스톤 테스트용 Android APK입니다. DEMO 시나리오로 동작하며 실제 알림·신고·도어락 제어는 연결되지 않습니다."
+            --notes-file - <<'EOF'
+          캡스톤 테스트용 Android APK입니다.
+
+          이번 버전에는 이벤트 캘린더·상세 조회, 후처리 영상 재생 인터페이스, 로컬 영상 보관, 이벤트 분류·검색, 단계별 기기 알림, 다중 장치 프로필 관리가 포함됩니다.
+
+          실제 하드웨어 통신과 위험도 계산식은 아직 연결되지 않았습니다. 내장 DEMO 데이터로 화면과 데이터 흐름을 확인할 수 있으며, 112 신고나 도어락 제어는 실행하지 않습니다.
+          EOF

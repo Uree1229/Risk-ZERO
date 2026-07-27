@@ -2,7 +2,7 @@
   "expo": {
     "name": "RISK-ZERO",
     "slug": "risk-zero-mobile",
-    "version": "0.1.1",
+    "version": "0.2.0",
     "orientation": "portrait",
     "newArchEnabled": true,
     "ios": {
@@ -11,7 +11,7 @@
     },
     "android": {
       "package": "com.pixelzero.riskzero",
-      "versionCode": 2
+      "versionCode": 3
     },
     "plugins": [
       "expo-sqlite",

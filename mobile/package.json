@@ -1,6 +1,6 @@
 {
   "name": "risk-zero-mobile",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "main": "index.ts",
@@ -10,7 +10,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "node --test src/events/calendar.test.mjs src/events/event-filter.test.mjs src/media/video-retention.test.mjs src/module/module-sync.test.mjs src/notifications/notification-policy.test.mjs src/storage/event-log.test.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:schema": "node scripts/verify-schema.mjs"
   },
   "dependencies": {
     "expo": "~57.0.8",
