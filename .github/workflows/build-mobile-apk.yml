@@ -50,16 +50,20 @@ jobs:
         working-directory: mobile/android
         run: ./gradlew assembleRelease --no-daemon
 
+      - name: Read app version
+        id: app
+        run: node -p "'version=' + require('./mobile/package.json').version" >> "$GITHUB_OUTPUT"
+
       - name: Prepare download file
         run: |
           mkdir -p artifacts
-          cp mobile/android/app/build/outputs/apk/release/app-release.apk artifacts/RISK-ZERO-v0.1.0.apk
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk "artifacts/RISK-ZERO-v${{ steps.app.outputs.version }}.apk"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RISK-ZERO-v0.1.0-apk
-          path: artifacts/RISK-ZERO-v0.1.0.apk
+          name: RISK-ZERO-v${{ steps.app.outputs.version }}-apk
+          path: artifacts/RISK-ZERO-v${{ steps.app.outputs.version }}.apk
           if-no-files-found: error
 
       - name: Create GitHub release
@@ -67,6 +71,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" artifacts/RISK-ZERO-v0.1.0.apk \
-            --title "RISK-ZERO Mobile v0.1.0" \
-            --notes "캡스톤 테스트용 Android APK입니다. 현재 위험도는 고정 더미 데이터이며 실제 신고·도어락 제어는 실행하지 않습니다."
+          gh release create "${GITHUB_REF_NAME}" "artifacts/RISK-ZERO-v${{ steps.app.outputs.version }}.apk" \
+            --title "RISK-ZERO Mobile v${{ steps.app.outputs.version }}" \
+            --notes "캡스톤 테스트용 Android APK입니다. DEMO 시나리오로 동작하며 실제 알림·신고·도어락 제어는 연결되지 않습니다."

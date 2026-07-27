@@ -11,7 +11,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { API_BASE_URL, API_CONFIGURED, getSnapshot } from "./src/api";
+import { getSnapshot } from "./src/api";
 import type { RiskLevel, SensorReading, SystemSnapshot } from "./src/types";
 
 type TabId = "home" | "events" | "settings";
@@ -44,7 +44,6 @@ function MetricCard({ reading }: { reading: SensorReading }) {
         <View style={styles.onlineDot} />
       </View>
       <Text style={styles.metricValue}>{readingValue(reading)}</Text>
-      <Text style={styles.metricCode}>{reading.metric}</Text>
     </View>
   );
 }
@@ -72,9 +71,8 @@ function HomeScreen({
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.heroCopy}>
-        <Text style={styles.eyebrow}>LIVE SAFETY OVERVIEW</Text>
-        <Text style={styles.title}>우리 집 현관은{`\n`}지금 안전한가요?</Text>
-        <Text style={styles.subtitle}>실제 위험도 계산 전, 고정 시나리오로 화면 흐름을 검증하는 모바일 MVP입니다.</Text>
+        <Text style={styles.eyebrow}>HOME SAFETY</Text>
+        <Text style={styles.title}>현관 상태</Text>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scenarioRow}>
@@ -91,12 +89,12 @@ function HomeScreen({
       <View style={[styles.riskCard, { borderColor: `${meta.color}55` }]}>
         <View style={styles.riskTopline}>
           <View>
-            <Text style={styles.sectionLabel}>현재 위험 상태</Text>
+            <Text style={styles.sectionLabel}>현재 상태</Text>
             <Text style={[styles.riskLabel, { color: meta.color }]}>{meta.label}</Text>
           </View>
           <View style={[styles.sourceBadge, { backgroundColor: source === "api" ? "#143027" : "#2A2518" }]}>
             <View style={[styles.sourceDot, { backgroundColor: source === "api" ? "#72D8B2" : "#F5C86C" }]} />
-            <Text style={styles.sourceText}>{source === "api" ? "WEB API" : "OFFLINE DEMO"}</Text>
+            <Text style={styles.sourceText}>{source === "api" ? "ONLINE" : "OFFLINE"}</Text>
           </View>
         </View>
 
@@ -106,7 +104,6 @@ function HomeScreen({
             <Text style={styles.scoreUnit}>/ 100</Text>
           </View>
           <View style={styles.scoreCopy}>
-            <Text style={styles.demoTag}>고정 더미 결과</Text>
             <Text style={styles.summary}>{snapshot.assessment.summary}</Text>
             <View style={styles.reasonWrap}>
               {snapshot.assessment.reasons.map((reason) => <Text style={styles.reasonPill} key={reason}>{reason}</Text>)}
@@ -115,26 +112,21 @@ function HomeScreen({
         </View>
 
         <View style={styles.responseBox}>
-          <Text style={styles.responseLabel}>대응 미리보기</Text>
+          <Text style={styles.responseLabel}>권장 조치</Text>
           <Text style={styles.responseMessage}>{snapshot.response.message}</Text>
           {snapshot.assessment.level === "critical" ? (
-            <Pressable style={styles.confirmButton} onPress={() => Alert.alert("시연 모드", "실제 112 신고는 실행되지 않습니다.")}>
-              <Text style={styles.confirmButtonText}>보호자 신고 확인 화면</Text>
+            <Pressable style={styles.confirmButton} onPress={() => Alert.alert("기능 준비 중", "긴급 신고 기능은 아직 연결되지 않았습니다.")}>
+              <Text style={styles.confirmButtonText}>긴급 연락 안내</Text>
             </Pressable>
           ) : null}
         </View>
       </View>
 
       <View style={styles.sectionTitleRow}>
-        <View><Text style={styles.sectionLabel}>NORMALIZED INPUT</Text><Text style={styles.sectionTitle}>센서 데이터</Text></View>
-        <Text style={styles.providerText}>{snapshot.sensorEvent.source.provider}</Text>
+        <View><Text style={styles.sectionLabel}>ENTRANCE SENSOR</Text><Text style={styles.sectionTitle}>감지 정보</Text></View>
+        <Text style={styles.providerText}>현관 센서</Text>
       </View>
       <View style={styles.metricGrid}>{snapshot.sensorEvent.readings.map((reading) => <MetricCard key={reading.id} reading={reading} />)}</View>
-
-      <View style={styles.integrationNote}>
-        <Text style={styles.integrationTitle}>센서 연동 준비 완료</Text>
-        <Text style={styles.integrationCopy}>서버의 SensorGateway 구현만 교체하면 모바일 화면은 변경하지 않아도 됩니다.</Text>
-      </View>
     </ScrollView>
   );
 }
@@ -142,9 +134,8 @@ function HomeScreen({
 function EventsScreen({ snapshot }: { snapshot: SystemSnapshot }) {
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-      <Text style={styles.eyebrow}>TEST EVENT LOG</Text>
-      <Text style={styles.pageTitle}>최근 시연 이벤트</Text>
-      <Text style={styles.subtitle}>실제 기록이 아닌 UI 검증용 고정 데이터입니다.</Text>
+      <Text style={styles.eyebrow}>EVENTS</Text>
+      <Text style={styles.pageTitle}>최근 이벤트</Text>
       <View style={styles.eventList}>
         {snapshot.recentEvents.map((event) => {
           const meta = levelMeta[event.level];
@@ -170,31 +161,19 @@ function EventsScreen({ snapshot }: { snapshot: SystemSnapshot }) {
 function SettingsScreen({ source }: { source: "api" | "fallback" }) {
   const rows = [
     ["실행 모드", "DEMO"],
-    ["데이터 소스", source === "api" ? "웹 API 연결" : "모바일 내장 더미"],
-    ["위험도 엔진", "로직 비움 / Pass-through"],
-    ["실제 장치 제어", "비활성"],
-    ["자동 긴급 신고", "비활성"],
+    ["데이터 연결", source === "api" ? "온라인" : "오프라인"],
+    ["알림", "미연결"],
+    ["긴급 신고", "미연결"],
+    ["앱 버전", "0.1.1"],
   ];
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-      <Text style={styles.eyebrow}>MVP SETTINGS</Text>
-      <Text style={styles.pageTitle}>연동 및 정책</Text>
-      <Text style={styles.subtitle}>캡스톤 테스트 단계에서 확인해야 할 최소 설정만 제공합니다.</Text>
+      <Text style={styles.eyebrow}>SETTINGS</Text>
+      <Text style={styles.pageTitle}>앱 정보</Text>
       <View style={styles.settingsCard}>{rows.map(([label, value]) => <View style={styles.settingRow} key={label}><Text style={styles.settingLabel}>{label}</Text><Text style={styles.settingValue}>{value}</Text></View>)}</View>
-      <View style={styles.apiCard}>
-        <Text style={styles.integrationTitle}>API 주소</Text>
-        <Text style={styles.apiUrl}>{API_CONFIGURED ? API_BASE_URL : "미설정 · OFFLINE DEMO"}</Text>
-        <Text style={styles.integrationCopy}>
-          {API_CONFIGURED
-            ? "설정된 웹 API를 우선 사용하며 연결에 실패하면 내장 시연 데이터로 전환합니다."
-            : "배포 APK는 서버 없이 바로 실행되도록 내장 시연 데이터를 사용합니다. 실제 연동 빌드에서는 EXPO_PUBLIC_API_BASE_URL을 지정하세요."}
-        </Text>
-      </View>
-      <View style={styles.policyCard}>
-        <Text style={styles.integrationTitle}>시연 안전 원칙</Text>
-        <Text style={styles.policyItem}>• 현재 점수는 위험도 계산 결과가 아닙니다.</Text>
-        <Text style={styles.policyItem}>• 카메라·알림은 화면 미리보기만 제공합니다.</Text>
-        <Text style={styles.policyItem}>• 긴급 신고는 보호자 확인 전 자동 실행하지 않습니다.</Text>
+      <View style={styles.noticeCard}>
+        <Text style={styles.noticeTitle}>데모 버전</Text>
+        <Text style={styles.noticeCopy}>시나리오 데이터로 동작하며 알림과 신고는 연결되지 않습니다.</Text>
       </View>
     </ScrollView>
   );
@@ -223,7 +202,7 @@ export default function App() {
   }, [load]);
 
   const content = useMemo(() => {
-    if (!snapshot) return <View style={styles.loading}><ActivityIndicator color="#9FE3CC" size="large" /><Text style={styles.loadingText}>더미 모니터를 준비하고 있습니다.</Text></View>;
+    if (!snapshot) return <View style={styles.loading}><ActivityIndicator color="#9FE3CC" size="large" /><Text style={styles.loadingText}>현관 상태를 불러오는 중</Text></View>;
     if (activeTab === "events") return <EventsScreen snapshot={snapshot} />;
     if (activeTab === "settings") return <SettingsScreen source={source} />;
     return <HomeScreen snapshot={snapshot} source={source} refreshing={refreshing} onRefresh={() => void load()} onScenario={selectScenario} />;
@@ -262,11 +241,10 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 20, paddingBottom: 34 },
   heroCopy: { paddingTop: 15 },
   eyebrow: { color: "#9FE3CC", fontSize: 9, fontWeight: "800", letterSpacing: 1.5 },
-  title: { color: "#F4F7F7", fontSize: 34, lineHeight: 42, fontWeight: "800", letterSpacing: -1.5, marginTop: 10 },
+  title: { color: "#F4F7F7", fontSize: 34, lineHeight: 40, fontWeight: "800", letterSpacing: -1.5, marginTop: 8 },
   pageTitle: { color: "#F4F7F7", fontSize: 30, lineHeight: 38, fontWeight: "800", letterSpacing: -1.2, marginTop: 10 },
-  subtitle: { color: "#899799", fontSize: 12, lineHeight: 20, marginTop: 10 },
-  scenarioRow: { gap: 8, paddingVertical: 20 },
-  scenarioButton: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: "#243234", backgroundColor: "#0F1718" },
+  scenarioRow: { gap: 8, paddingVertical: 18 },
+  scenarioButton: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: "#243234", backgroundColor: "#0F1718", outlineWidth: 0 },
   scenarioButtonActive: { backgroundColor: "#9FE3CC", borderColor: "#9FE3CC" },
   scenarioText: { color: "#9DAAAB", fontSize: 11, fontWeight: "700" },
   scenarioTextActive: { color: "#07110E" },
@@ -282,8 +260,7 @@ const styles = StyleSheet.create({
   scoreNumber: { fontSize: 42, fontWeight: "900", letterSpacing: -2 },
   scoreUnit: { color: "#718082", fontSize: 9 },
   scoreCopy: { flex: 1 },
-  demoTag: { alignSelf: "flex-start", color: "#9FE3CC", backgroundColor: "#152824", fontSize: 8, fontWeight: "800", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999 },
-  summary: { color: "#CFD7D7", fontSize: 11, lineHeight: 17, marginTop: 10 },
+  summary: { color: "#CFD7D7", fontSize: 12, lineHeight: 18 },
   reasonWrap: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 10 },
   reasonPill: { color: "#9DAAAB", fontSize: 8, paddingHorizontal: 7, paddingVertical: 5, borderRadius: 7, borderWidth: 1, borderColor: "#263335" },
   responseBox: { borderTopWidth: 1, borderTopColor: "#263234", paddingTop: 15 },
@@ -299,10 +276,6 @@ const styles = StyleSheet.create({
   metricHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   metricLabel: { color: "#899799", fontSize: 9 },
   metricValue: { color: "#F4F7F7", fontSize: 20, fontWeight: "800", letterSpacing: -.6, marginTop: 8 },
-  metricCode: { color: "#526163", fontSize: 7, marginTop: 6 },
-  integrationNote: { marginTop: 13, borderRadius: 14, padding: 15, backgroundColor: "#11231F", borderWidth: 1, borderColor: "#1C3B33" },
-  integrationTitle: { color: "#9FE3CC", fontSize: 11, fontWeight: "800" },
-  integrationCopy: { color: "#899799", fontSize: 10, lineHeight: 16, marginTop: 6 },
   eventList: { gap: 10, marginTop: 24 },
   eventCard: { flexDirection: "row", overflow: "hidden", borderRadius: 14, borderWidth: 1, borderColor: "#223032", backgroundColor: "#11191A" },
   eventIndicator: { width: 4 },
@@ -316,14 +289,13 @@ const styles = StyleSheet.create({
   settingRow: { minHeight: 52, paddingHorizontal: 15, flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#283436" },
   settingLabel: { color: "#899799", fontSize: 10 },
   settingValue: { color: "#E5ECEB", fontSize: 10, fontWeight: "700" },
-  apiCard: { marginTop: 12, borderRadius: 14, padding: 15, backgroundColor: "#11191A", borderWidth: 1, borderColor: "#223032" },
-  apiUrl: { color: "#C6D3D2", fontSize: 9, marginTop: 8 },
-  policyCard: { marginTop: 12, borderRadius: 14, padding: 15, backgroundColor: "#211C12", borderWidth: 1, borderColor: "#3A321D" },
-  policyItem: { color: "#BFB7A4", fontSize: 10, lineHeight: 18, marginTop: 5 },
+  noticeCard: { marginTop: 12, borderRadius: 14, padding: 15, backgroundColor: "#18201D", borderWidth: 1, borderColor: "#2A3732" },
+  noticeTitle: { color: "#C6D3D2", fontSize: 11, fontWeight: "800" },
+  noticeCopy: { color: "#899799", fontSize: 10, lineHeight: 16, marginTop: 6 },
   loading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 15 },
   loadingText: { color: "#899799", fontSize: 11 },
   tabBar: { height: 70, borderTopWidth: 1, borderTopColor: "#1D292A", backgroundColor: "#0C1314", flexDirection: "row", paddingHorizontal: 18 },
-  tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 3 },
+  tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 3, outlineWidth: 0 },
   tabSymbol: { color: "#617073", fontSize: 20 },
   tabLabel: { color: "#617073", fontSize: 9, fontWeight: "700" },
   tabActive: { color: "#9FE3CC" },

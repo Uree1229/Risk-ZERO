@@ -13,11 +13,11 @@ const levelText: Record<RiskLevel, string> = {
 };
 
 const actionText: Record<ResponseAction, string> = {
-  standby: "대기 유지",
-  local_alert: "실내 알림",
-  camera_preview: "카메라 미리보기",
-  guardian_notice: "보호자 알림",
-  confirm_emergency_call: "신고 확인 요청",
+  standby: "대기",
+  local_alert: "실내 확인",
+  camera_preview: "현관 확인",
+  guardian_notice: "보호자 확인",
+  confirm_emergency_call: "긴급 연락 안내",
 };
 
 function readingValue(reading: SensorReading) {
@@ -48,7 +48,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: SystemSnapshot
       if (!response.ok) throw new Error("snapshot request failed");
       setSnapshot((await response.json()) as SystemSnapshot);
     } catch {
-      setError("새 더미 데이터를 불러오지 못했습니다. 현재 화면을 유지합니다.");
+      setError("상태를 새로고침하지 못했습니다.");
     } finally {
       setLoading(false);
     }
@@ -79,19 +79,17 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: SystemSnapshot
         </div>
         <div className="topbar-status">
           <span className="live-dot" aria-hidden="true" />
-          <span>시스템 연결됨</span><span className="divider" />
-          <span className="demo-chip">DEMO MODE</span>
+          <span className="demo-chip">DEMO</span>
         </div>
       </header>
 
       <section className="intro-row">
         <div>
-          <p className="eyebrow">LIVE SAFETY OVERVIEW</p>
-          <h1>현관 상태를 한눈에 확인하세요.</h1>
-          <p className="intro-copy">센서 계층과 위험도 로직을 분리한 테스트 화면입니다. 현재 점수는 계산식이 아닌 고정된 시연 값입니다.</p>
+          <p className="eyebrow">HOME SAFETY</p>
+          <h1>현관 상태</h1>
         </div>
-        <div className="scenario-controls" aria-label="테스트 시나리오 선택">
-          <span>테스트 시나리오</span>
+        <div className="scenario-controls" aria-label="상황 선택">
+          <span>상황 선택</span>
           <div className="scenario-buttons">
             {scenarioOptions.map((scenario) => (
               <button
@@ -108,7 +106,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: SystemSnapshot
             data-testid="autoplay-toggle"
             aria-pressed={autoPlay}
             onClick={() => setAutoPlay((current) => !current)}
-          ><span aria-hidden="true">{autoPlay ? "Ⅱ" : "▶"}</span>{autoPlay ? "자동 재생 멈춤" : "시나리오 자동 재생"}</button>
+          ><span aria-hidden="true">{autoPlay ? "Ⅱ" : "▶"}</span>{autoPlay ? "멈춤" : "자동 보기"}</button>
         </div>
       </section>
 
@@ -117,67 +115,46 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: SystemSnapshot
       <section className="overview-grid">
         <article className={`risk-card level-${snapshot.assessment.level}`}>
           <div className="card-heading">
-            <div><span className="card-kicker">현재 위험 상태</span><h2>{levelText[snapshot.assessment.level]}</h2></div>
+            <div><span className="card-kicker">현재 상태</span><h2>{levelText[snapshot.assessment.level]}</h2></div>
             <span className="updated-at">{formatTime(snapshot.generatedAt)} 갱신</span>
           </div>
           <div className="risk-content">
-            <div className="risk-gauge" style={gaugeStyle} aria-label={`더미 위험도 ${score}점`}>
+            <div className="risk-gauge" style={gaugeStyle} aria-label={`위험 지수 ${score}점`}>
               <div><strong>{score}</strong><span>/ 100</span></div>
             </div>
             <div className="risk-copy">
-              <span className="dummy-label">고정 더미 결과</span>
               <p>{snapshot.assessment.summary}</p>
               <div className="reason-list">{snapshot.assessment.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
             </div>
           </div>
           <div className="response-strip">
-            <div><span>대응 미리보기</span><p>{snapshot.response.message}</p></div>
+            <div><span>권장 조치</span><p>{snapshot.response.message}</p></div>
             <div className="action-list">{snapshot.response.actions.map((action) => <span key={action}>{actionText[action]}</span>)}</div>
           </div>
         </article>
 
         <article className="sensor-panel">
           <div className="card-heading">
-            <div><span className="card-kicker">정규화된 입력</span><h2>센서 데이터</h2></div>
-            <span className="source-chip">{snapshot.sensorEvent.source.provider}</span>
+            <div><span className="card-kicker">ENTRANCE SENSOR</span><h2>감지 정보</h2></div>
+            <span className="source-chip">현관 센서</span>
           </div>
           <div className="sensor-grid">
             {snapshot.sensorEvent.readings.map((reading) => (
               <div className="sensor-tile" key={reading.id}>
                 <span className="sensor-state" aria-hidden="true" />
-                <span>{reading.label}</span><strong>{readingValue(reading)}</strong><small>{reading.metric}</small>
+                <span>{reading.label}</span><strong>{readingValue(reading)}</strong>
               </div>
             ))}
-          </div>
-          <div className="adapter-note">
-            <span>연동 지점</span>
-            <p>실제 센서 계층은 <code>SensorGateway</code>만 구현하면 동일한 화면에 연결됩니다.</p>
           </div>
         </article>
       </section>
 
-      <section className="pipeline-section">
-        <div className="section-heading">
-          <div><span className="card-kicker">SW ARCHITECTURE</span><h2>교체 가능한 데이터 처리 흐름</h2></div>
-          <span className="engine-state">위험도 로직 미확정</span>
-        </div>
-        <div className="pipeline-grid">
-          {snapshot.pipeline.map((stage, index) => (
-            <div className="pipeline-stage" key={stage.id}>
-              <div className={`stage-number state-${stage.state}`}>{index + 1}</div>
-              <div><strong>{stage.label}</strong><span>{stage.detail}</span></div>
-              {index < snapshot.pipeline.length - 1 ? <span className="stage-arrow" aria-hidden="true">→</span> : null}
-            </div>
-          ))}
-        </div>
-      </section>
-
       <section className="event-section">
         <div className="section-heading">
-          <div><span className="card-kicker">TEST EVENT LOG</span><h2>최근 시연 이벤트</h2></div>
-          <button className="secondary-button" onClick={() => void loadScenario(snapshot.scenarioId)}>더미 데이터 새로고침</button>
+          <div><span className="card-kicker">EVENTS</span><h2>최근 이벤트</h2></div>
+          <button className="secondary-button" onClick={() => void loadScenario(snapshot.scenarioId)}>새로고침</button>
         </div>
-        <div className="event-table" role="table" aria-label="최근 시연 이벤트">
+        <div className="event-table" role="table" aria-label="최근 이벤트">
           <div className="event-row event-header" role="row">
             <span role="columnheader">시간</span><span role="columnheader">상황</span><span role="columnheader">상세</span><span role="columnheader">위험도</span><span role="columnheader">점수</span>
           </div>
@@ -190,7 +167,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: SystemSnapshot
         </div>
       </section>
 
-      <footer><span>RISK-ZERO CAPSTONE MVP</span><span>실제 장치 제어와 긴급 신고는 실행하지 않습니다.</span></footer>
+      <footer><span>DEMO · 알림 및 긴급 신고 미연결</span></footer>
     </main>
   );
 }

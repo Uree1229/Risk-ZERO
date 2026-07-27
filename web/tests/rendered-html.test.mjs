@@ -15,16 +15,18 @@ async function render(path = "/") {
   );
 }
 
-test("server-renders the RISK-ZERO monitoring MVP", async () => {
+test("server-renders the RISK-ZERO monitoring page", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /RISK-ZERO/);
-  assert.match(html, /현관 상태를 한눈에 확인하세요/);
-  assert.match(html, /DEMO MODE/);
-  assert.match(html, /SensorGateway/);
+  const visibleHtml = html.split('<script id="_R_">')[0];
+  assert.match(visibleHtml, /RISK-ZERO/);
+  assert.match(visibleHtml, /현관 상태/);
+  assert.match(visibleHtml, /DEMO/);
+  assert.match(visibleHtml, /최근 이벤트/);
+  assert.doesNotMatch(visibleHtml, /SensorGateway|고정 더미 결과|교체 가능한 데이터 처리 흐름/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
 });
 

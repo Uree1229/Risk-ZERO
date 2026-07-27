@@ -559,14 +559,14 @@ const scenarioLabels: Record<string, string> = {
   normal: "정상 방문",
   watch: "주의 관찰",
   warning: "위험 징후",
-  critical: "고위험 시연",
+  critical: "고위험",
 };
 
 const responseMessages: Record<string, string> = {
-  normal: "추가 대응 없이 대기합니다.",
-  watch: "실내 알림을 미리보기로 표시합니다.",
-  warning: "보조 카메라와 보호자 알림을 미리보기로 실행합니다.",
-  critical: "보호자 확인 후 신고하도록 안내합니다. 자동 신고는 실행하지 않습니다.",
+  normal: "별도 확인이 필요하지 않습니다.",
+  watch: "현관 상황을 확인해 주세요.",
+  warning: "보호자 확인이 필요합니다.",
+  critical: "거주자에게 연락하고 상황을 확인하세요.",
 };
 
 export async function buildDatabaseSnapshot(db: D1Database, requestedScenario: string): Promise<SystemSnapshot> {
@@ -627,7 +627,7 @@ export async function buildDatabaseSnapshot(db: D1Database, requestedScenario: s
     id: row.id,
     occurredAt: asClock(row.started_at),
     title: row.title,
-    detail: row.summary ?? "DB에 저장된 더미 사건",
+    detail: row.summary ?? "이벤트 기록",
     level: (row.level ?? row.max_risk_level) as EventLogItem["level"],
     score: row.score ?? row.max_risk_score,
   }));

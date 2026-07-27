@@ -62,7 +62,7 @@ VALUES
   ('demo-incident-warning', 'demo-household-01', 'warning', '위험 징후', 'closed', 'warning', 68,
    'test', 1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-45 minutes'),
    strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-43 minutes'), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-  ('demo-incident-critical', 'demo-household-01', 'critical', '고위험 시연', 'monitoring', 'critical', 88,
+  ('demo-incident-critical', 'demo-household-01', 'critical', '고위험', 'monitoring', 'critical', 88,
    'test', 1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-5 minutes'),
    NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 --> statement-breakpoint
@@ -121,19 +121,19 @@ INSERT OR IGNORE INTO risk_assessments
 VALUES
   ('demo-assessment-normal', 'demo-incident-normal', 'demo-event-normal', NULL, 'demo',
    'DemoPassThroughRiskEngine', NULL, 14, 'normal', NULL,
-   '정상적인 짧은 방문으로 표시된 DB 더미 결과입니다.', '["짧은 체류","진동 없음"]',
+   '짧은 방문이 감지되었습니다.', '["짧은 체류","진동 없음"]',
    NULL, NULL, strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-4 hours'), CURRENT_TIMESTAMP),
   ('demo-assessment-watch', 'demo-incident-watch', 'demo-event-watch', NULL, 'demo',
    'DemoPassThroughRiskEngine', NULL, 46, 'watch', NULL,
-   '현관 앞 체류가 길어진 상황을 재현한 DB 더미 결과입니다.', '["체류 시간 증가","일회성 진동"]',
+   '현관 앞 체류가 길어지고 있습니다.', '["체류 시간 증가","일회성 진동"]',
    NULL, NULL, strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-2 hours'), CURRENT_TIMESTAMP),
   ('demo-assessment-warning', 'demo-incident-warning', 'demo-event-warning', NULL, 'demo',
    'DemoPassThroughRiskEngine', NULL, 68, 'warning', NULL,
-   '카메라와 보호자 알림 흐름을 확인하는 DB 더미 결과입니다.', '["장시간 체류","반복 진동"]',
+   '장시간 체류와 반복 진동이 감지되었습니다.', '["장시간 체류","반복 진동"]',
    NULL, NULL, strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-45 minutes'), CURRENT_TIMESTAMP),
   ('demo-assessment-critical', 'demo-incident-critical', 'demo-event-critical', NULL, 'demo',
    'DemoPassThroughRiskEngine', NULL, 88, 'critical', NULL,
-   '고위험 대응 화면을 확인하기 위한 DB 고정 더미 값입니다.', '["장시간 체류","반복적인 강한 진동","문 주변 충격"]',
+   '강한 반복 진동과 문 주변 충격이 감지되었습니다.', '["장시간 체류","반복적인 강한 진동","문 주변 충격"]',
    NULL, NULL, strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-5 minutes'), CURRENT_TIMESTAMP);
 --> statement-breakpoint
 

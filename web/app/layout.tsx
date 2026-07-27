@@ -10,16 +10,16 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     title: "RISK-ZERO | 현관 안전 모니터",
-    description: "센서 연동 전 더미 데이터로 검증하는 RISK-ZERO 캡스톤 모니터링 MVP",
+    description: "현관 감지 정보와 위험 상태를 확인하는 RISK-ZERO 모니터",
     openGraph: {
       title: "RISK-ZERO",
-      description: "현관 위험 대응 보조 시스템 · CAPSTONE MVP",
+      description: "현관 감지 정보와 위험 상태를 한눈에 확인하세요.",
       images: [{ url: imageUrl, width: 1536, height: 1024, alt: "RISK-ZERO 현관 위험 대응 보조 시스템" }],
     },
     twitter: {
       card: "summary_large_image",
       title: "RISK-ZERO",
-      description: "현관 위험 대응 보조 시스템 · CAPSTONE MVP",
+      description: "현관 감지 정보와 위험 상태를 한눈에 확인하세요.",
       images: [imageUrl],
     },
   };
