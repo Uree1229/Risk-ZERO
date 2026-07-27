@@ -1,5 +1,3 @@
-import type { SensorReading } from "../types";
-
 export type ModuleTransport = "ble" | "wifi" | "serial" | "demo" | "other";
 
 export interface ModuleDevice {
@@ -12,8 +10,34 @@ export interface ModuleDevice {
 export interface ModuleEventDraft {
   eventType: string;
   capturedAt: string;
-  readings: SensorReading[];
+  metrics: ProcessedMetric[];
+  video?: ProcessedVideoFile;
   dedupeKey?: string;
+}
+
+export interface ProcessedMetric {
+  id: string;
+  metric: string;
+  label: string;
+  value: number;
+  unit?: string;
+  quality: "good" | "degraded" | "unknown";
+  capturedAt: string;
+}
+
+/**
+ * 하드웨어 어댑터가 앱 저장소로 전송을 끝낸 후 넘기는 영상 정보입니다.
+ * SQLite에는 영상 바이트가 아니라 이 메타데이터와 localUri만 저장합니다.
+ */
+export interface ProcessedVideoFile {
+  id: string;
+  fileName: string;
+  localUri: string;
+  mimeType: string;
+  sizeBytes: number;
+  durationMs: number;
+  checksumSha256?: string;
+  capturedAt: string;
 }
 
 export interface ModuleEvent extends ModuleEventDraft {

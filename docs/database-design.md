@@ -3,32 +3,34 @@
 ## 설계 목표
 
 - 센서 제조사와 전송 방식이 바뀌어도 공통 이벤트 형식을 유지한다.
+- 실제 하드웨어에서는 분석이 끝난 수치형 지표와 후처리 영상만 수신한다.
 - 위험도 계산식이 미정인 현재는 더미 결과를 저장할 수 있고, 추후 알고리즘 버전별 결과를 비교할 수 있다.
 - 고객용 모바일 앱의 SQLite를 MVP 주 저장소로 사용해 별도 서버 비용을 줄인다.
 - 도어락 모듈은 연결이 끊긴 동안의 미전송 이벤트만 임시 보관한다.
 - 웹 모니터링과 API DB는 개발·시연용으로 유지한다.
 - 보호자 확인 결과를 남겨 향후 오탐 분석과 규칙 개선에 활용한다.
-- 영상 원본은 관계형 DB에 넣지 않고, 필요할 때만 별도 객체 저장소에 보관한다.
+- 후처리 영상은 관계형 DB에 넣지 않고 모바일 앱 전용 파일 저장소에 보관한다.
 
 ## MVP 저장 위치
 
 ```mermaid
 flowchart LR
-    A["센서 계층"] --> B["도어락 모듈 임시 버퍼"]
+    A["센서 분석·영상 후처리"] --> B["도어락 모듈 임시 버퍼"]
     B -->|"연결 시 전달"| C["모바일 SQLite"]
     C --> D["모바일 모니터링 화면"]
     E["개발·시연 API"] --> F["웹 DB"]
     F --> G["웹 모니터링 화면"]
 ```
 
-모바일 SQLite가 사건과 위험도 이력의 주 저장소다. 도어락 모듈에는 현재 상태, 최근 이벤트, 아직 앱에 전달하지 못한 이벤트만 제한적으로 저장한다. 모듈 저장소와 동기화 프로토콜은 다음 단계에서 구현한다.
+모바일 SQLite가 사건과 위험도 이력의 주 저장소다. 도어락 모듈에는 현재 상태, 최근 이벤트, 아직 앱에 전달하지 못한 이벤트만 제한적으로 저장한다. 동기화는 이벤트 순번과 ACK를 기준으로 재개한다.
 
 ## 데이터 흐름
 
 ```mermaid
 flowchart LR
-    A["센서 계층"] --> B["sensor_events"]
+    A["하드웨어 후처리 결과"] --> B["sensor_events"]
     B --> C["sensor_readings"]
+    B --> V["processed_videos"]
     B --> D["incidents"]
     D --> E["risk_assessments"]
     E --> F["risk_factor_observations"]
@@ -49,6 +51,7 @@ erDiagram
     DEVICES ||--o{ SENSOR_EVENTS : produces
     INCIDENTS o|--o{ SENSOR_EVENTS : groups
     SENSOR_EVENTS ||--o{ SENSOR_READINGS : contains
+    SENSOR_EVENTS ||--o| PROCESSED_VIDEOS : has
     INCIDENTS ||--o{ RISK_ASSESSMENTS : receives
     RISK_ENGINE_VERSIONS o|--o{ RISK_ASSESSMENTS : evaluates
     SENSOR_EVENTS o|--o{ RISK_ASSESSMENTS : triggers
@@ -71,8 +74,9 @@ erDiagram
 | `devices` | 센서·허브·도어락 등록 | 장치 종류, 전송 방식, 상태, 기능 목록 저장 |
 | `visit_expectations` | 예정된 배달·방문 | 정상 방문 맥락으로 사용해 오탐을 줄임 |
 | `incidents` | 하나의 위험 상황 묶음 | 여러 센서 이벤트와 여러 차례의 위험도 재평가를 하나로 묶음 |
-| `sensor_events` | 센서 계층의 정규화 이벤트 | 중복 방지 키, 수집·수신 시각, 원본 JSON 저장 |
-| `sensor_readings` | 이벤트의 개별 측정값 | 자유로운 `metric`과 숫자·문자·불리언·JSON 값을 지원 |
+| `sensor_events` | 하드웨어 후처리 이벤트 | 중복 방지 키, 이벤트 순번, 수집·수신 시각 저장 |
+| `sensor_readings` | 이벤트의 수치형 지표 | 실제 모듈 경로는 숫자형 `metric`만 저장 |
+| `processed_videos` | 후처리 영상 메타데이터 | 영상 바이트 대신 앱 파일 경로, 크기, 길이, 체크섬 저장 |
 | `risk_engine_versions` | 위험도 로직 버전 | 현재는 비워두고 계산식 확정 후 `draft → active`로 관리 |
 | `risk_assessments` | 위험도 평가 결과 | 점수, 단계, 요약, 알고리즘 버전, 입력 시간 구간 저장 |
 | `risk_factor_observations` | 평가 근거 | 요소별 관측값과 신뢰도 저장, 계산식 미정이므로 `contribution`은 NULL 가능 |
@@ -80,26 +84,25 @@ erDiagram
 | `incident_feedback` | 보호자의 사후 판정 | 정상 방문·실제 위험·오탐·테스트 라벨 저장 |
 | `audit_logs` | 중요 변경 감사 기록 | 누가 어떤 설정·사건 상태를 변경했는지 기록 |
 
-모바일 MVP는 전체 서버 스키마를 그대로 복제하지 않는다. 우선 `devices`, `incidents`, `sensor_events`, `sensor_readings`, `risk_assessments`, `response_actions`, `app_settings`, `sync_states`만 사용한다. 사용자·가구 권한, 감사 로그, 위험 요소 상세 분석은 서버 또는 확장 단계에서 추가한다.
+모바일 MVP는 전체 서버 스키마를 그대로 복제하지 않는다. 우선 `devices`, `incidents`, `sensor_events`, `sensor_readings`, `processed_videos`, `risk_assessments`, `response_actions`, `app_settings`, `sync_states`만 사용한다. 사용자·가구 권한, 감사 로그, 위험 요소 상세 분석은 서버 또는 확장 단계에서 추가한다.
 
-## 확장 가능한 센서 값 모델
+## 확장 가능한 수치형 지표 모델
 
-새 센서가 추가될 때마다 열을 추가하지 않는다. `sensor_readings.metric`에 다음과 같은 코드를 넣는다.
+하드웨어에서 센서 분석을 끝낸 후 아래와 같은 수치를 전달한다. 새 지표가 추가될 때마다 열을 추가하지 않고 `sensor_readings.metric` 코드로 구분한다.
 
 | `metric` 예시 | 값 형식 | 설명 |
 |---|---|---|
-| `presence` | boolean | 사람 감지 여부 |
+| `person_confidence` | number | 사람 감지 신뢰도 0~1 |
 | `dwell_seconds` | number | 현관 앞 체류시간 |
 | `min_door_distance_cm` | number | 문과의 최소 거리 |
 | `approach_count` | number | 문 접근 횟수 |
 | `impact_peak` | number | 최대 충격값 |
 | `impact_count_10s` | number | 10초 내 충격 횟수 |
-| `door_state` | text | `open`, `closed`, `forced` 등 |
 | `door_open_seconds` | number | 문이 열린 시간 |
-| `manual_sos` | boolean | 사용자 긴급 요청 |
-| `sensor_agreement_count` | number | 같은 상황을 지지한 센서 수 |
+| `repeated_motion_score` | number | 반복 행동 분석 점수 |
+| `video_quality_score` | number | 후처리 영상 품질 점수 |
 
-각 측정값은 값과 함께 `unit`, `confidence`, `quality`, `captured_at`을 저장한다. 따라서 다른 계층은 센서 원본을 RISK-ZERO 형식으로 변환하기만 하면 된다.
+각 지표는 값과 함께 `unit`, `quality`, `captured_at`을 저장한다. DB 스키마는 시연 API 호환을 위해 문자·불리언 값도 허용하지만 실제 모듈 동기화 계약은 숫자만 허용한다.
 
 ## 위험도 로직이 비어 있는 상태의 저장 방식
 
@@ -115,7 +118,7 @@ erDiagram
 
 ## 사고 묶음 기준
 
-센서 이벤트마다 별도의 알림을 만들면 진동 7회가 알림 7개로 쪼개질 수 있다. 다음 조건에서는 기존 `incident`에 이벤트를 추가한다.
+후처리 이벤트마다 별도의 알림을 만들면 하나의 상황이 여러 알림으로 쪼개질 수 있다. 다음 조건에서는 기존 `incident`에 이벤트를 추가한다.
 
 - 같은 주거에서 진행 중인 사고가 존재한다.
 - 마지막 이벤트 후 설정된 휴지시간 이내다.
@@ -129,10 +132,10 @@ erDiagram
 
 | 데이터 | 권장 기간 | 이유 |
 |---|---:|---|
-| 일반 센서 원본 이벤트·측정값 | 7일 | 모바일 저장공간 사용량 제한 |
-| 사고 구간의 센서 이벤트·측정값 | 30일 | 사고 재구성과 오탐 분석 |
+| 일반 후처리 이벤트·수치형 지표 | 7일 | 모바일 저장공간 사용량 제한 |
+| 사고 구간의 이벤트·수치형 지표 | 30일 | 사고 재구성과 오탐 분석 |
 | 사고 요약·위험 평가·대응 기록 | 90일 | 사용자 확인과 발표용 통계 |
-| 영상·이미지 | 기본 저장 안 함, 필요 시 7일 | 개인정보 노출 최소화 |
+| 후처리 영상 | 기본 7일 | 사고 확인 후 앱 파일 저장소에서 삭제 |
 | 보호자 피드백 | 프로젝트 기간 | 오탐 분석과 알고리즘 개선 |
 | 감사 로그 | 180일 | 설정 변경과 대응 이력 확인 |
 
@@ -150,6 +153,7 @@ erDiagram
 
 - 모바일 SQLite 초기 스키마: `mobile/src/storage/schema.ts`
 - 모바일 저장 계층: `mobile/src/storage/local-database.native.ts`
+- 하드웨어 데이터 계약: `mobile/src/module/contracts.ts`
 - 웹 미리보기용 저장 대체 계층: `mobile/src/storage/local-database.ts`
 - 스키마 정의: `web/db/schema.ts`
 - DB 접근 함수: `web/db/index.ts`
@@ -159,4 +163,4 @@ erDiagram
 - 생성된 마이그레이션: `web/drizzle/`
 - 논리적 D1 바인딩: `web/.openai/hosting.json`의 `DB`
 
-모바일 앱은 API 또는 더미 스냅샷을 받은 뒤 Android·iOS의 SQLite에 장치, 사건, 센서값, 위험도 결과와 대응 기록을 저장한다. 웹 미리보기에서는 네이티브 SQLite를 열지 않는다. 현재 센서 API는 수신한 `SensorGateway` 형식의 데이터를 웹 DB에도 저장하며, 실제 센서 사건의 위험도는 계산식이 확정될 때까지 `pending` 상태로 유지한다.
+모바일 앱은 API 또는 더미 스냅샷을 받은 뒤 Android·iOS의 SQLite에 장치, 사건, 수치형 지표, 영상 경로, 위험도 결과와 대응 기록을 저장한다. 웹 미리보기에서는 네이티브 SQLite를 열지 않는다. 실제 하드웨어 이벤트의 위험도는 계산식이 확정될 때까지 `pending` 상태로 유지한다.

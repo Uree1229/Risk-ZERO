@@ -16,7 +16,8 @@ function assertNonNegativeInteger(value: number, name: string) {
 function copyEvent(event: ModuleEvent): ModuleEvent {
   return {
     ...event,
-    readings: event.readings.map((reading) => ({ ...reading })),
+    metrics: event.metrics.map((metric) => ({ ...metric })),
+    video: event.video ? { ...event.video } : undefined,
   };
 }
 
@@ -40,6 +41,9 @@ export class InMemoryModuleEventBuffer implements ModuleGateway {
   }
 
   append(draft: ModuleEventDraft): ModuleEvent {
+    if (draft.metrics.some((metric) => !Number.isFinite(metric.value))) {
+      throw new TypeError("Every processed metric value must be a finite number.");
+    }
     this.latestSequence += 1;
     const event: ModuleEvent = {
       ...draft,
@@ -47,7 +51,8 @@ export class InMemoryModuleEventBuffer implements ModuleGateway {
       deviceId: this.device.id,
       sequence: this.latestSequence,
       dedupeKey: draft.dedupeKey ?? `${this.device.id}:${this.latestSequence}`,
-      readings: draft.readings.map((reading) => ({ ...reading })),
+      metrics: draft.metrics.map((metric) => ({ ...metric })),
+      video: draft.video ? { ...draft.video } : undefined,
     };
 
     this.retainedEvents.push(event);

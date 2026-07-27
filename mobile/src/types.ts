@@ -11,6 +11,15 @@ export interface SensorReading {
   capturedAt: string;
 }
 
+export interface EventLogItem {
+  id: string;
+  occurredAt: string;
+  title: string;
+  detail: string;
+  level: RiskLevel;
+  score: number | null;
+}
+
 export interface SystemSnapshot {
   mode: "demo";
   scenarioId: string;
@@ -31,12 +40,5 @@ export interface SystemSnapshot {
     reasons: string[];
   };
   response: { status: "preview"; actions: string[]; message: string };
-  recentEvents: Array<{
-    id: string;
-    occurredAt: string;
-    title: string;
-    detail: string;
-    level: RiskLevel;
-    score: number | null;
-  }>;
+  recentEvents: EventLogItem[];
 }

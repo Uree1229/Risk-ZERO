@@ -9,7 +9,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "node --test src/module/module-sync.test.mjs",
+    "test": "node --test src/module/module-sync.test.mjs src/storage/event-log.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

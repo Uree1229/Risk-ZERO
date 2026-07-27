@@ -4,7 +4,13 @@ import type {
   ModuleEvent,
   ModuleSyncState,
 } from "../module/contracts";
-import type { SensorReading, SystemSnapshot } from "../types";
+import type {
+  EventLogItem,
+  RiskLevel,
+  SensorReading,
+  SystemSnapshot,
+} from "../types";
+import { formatEventTime } from "./event-log";
 import {
   MOBILE_DATABASE_NAME,
   MOBILE_SCHEMA_SQL,
@@ -202,6 +208,50 @@ export async function saveSnapshotLocally(snapshot: SystemSnapshot) {
   });
 }
 
+export async function loadRecentEvents(limit = 50): Promise<EventLogItem[]> {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new RangeError("limit must be an integer between 1 and 100.");
+  }
+
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<{
+    id: string;
+    captured_at: string;
+    title: string;
+    detail: string;
+    risk_level: RiskLevel;
+    risk_score: number | null;
+  }>(
+    `SELECT se.id,
+            se.captured_at,
+            i.title,
+            COALESCE(NULLIF(ra.summary, ''), se.event_type) AS detail,
+            COALESCE(ra.risk_level, 'pending') AS risk_level,
+            ra.risk_score
+       FROM sensor_events se
+       JOIN incidents i ON i.id = se.incident_id
+       LEFT JOIN risk_assessments ra ON ra.id = (
+         SELECT latest_ra.id
+           FROM risk_assessments latest_ra
+          WHERE latest_ra.trigger_event_id = se.id
+          ORDER BY latest_ra.evaluated_at DESC
+          LIMIT 1
+       )
+      ORDER BY se.captured_at DESC, se.sequence DESC
+      LIMIT ?`,
+    limit,
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    occurredAt: formatEventTime(row.captured_at),
+    title: row.title,
+    detail: row.detail,
+    level: row.risk_level,
+    score: row.risk_score,
+  }));
+}
+
 function moduleIncidentId(event: ModuleEvent) {
   return `incident:module:${event.id}`;
 }
@@ -307,25 +357,45 @@ export async function saveModuleEvents(
       if (insertResult.changes === 0) continue;
       storedEventCount += 1;
 
-      for (const reading of event.readings) {
-        const [valueType, valueNumber, valueText, valueBoolean] =
-          readingValues(reading);
+      for (const metric of event.metrics) {
         await transaction.runAsync(
           `INSERT INTO sensor_readings
              (id, event_id, metric, label, value_type, value_number, value_text,
               value_boolean, unit, quality, captured_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          `${event.id}:${reading.id}`,
+           VALUES (?, ?, ?, ?, 'number', ?, NULL, NULL, ?, ?, ?)`,
+          `${event.id}:${metric.id}`,
           event.id,
-          reading.metric,
-          reading.label,
-          valueType,
-          valueNumber,
-          valueText,
-          valueBoolean,
-          reading.unit ?? null,
-          reading.quality,
-          reading.capturedAt,
+          metric.metric,
+          metric.label,
+          metric.value,
+          metric.unit ?? null,
+          metric.quality,
+          metric.capturedAt,
+        );
+      }
+
+      if (event.video) {
+        await transaction.runAsync(
+          `INSERT INTO processed_videos
+             (id, event_id, file_name, local_uri, mime_type, size_bytes,
+              duration_ms, checksum_sha256, captured_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             local_uri = excluded.local_uri,
+             file_name = excluded.file_name,
+             mime_type = excluded.mime_type,
+             size_bytes = excluded.size_bytes,
+             duration_ms = excluded.duration_ms,
+             checksum_sha256 = excluded.checksum_sha256`,
+          event.video.id,
+          event.id,
+          event.video.fileName,
+          event.video.localUri,
+          event.video.mimeType,
+          event.video.sizeBytes,
+          event.video.durationMs,
+          event.video.checksumSha256 ?? null,
+          event.video.capturedAt,
         );
       }
     }

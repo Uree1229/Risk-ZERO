@@ -1,5 +1,5 @@
 export const MOBILE_DATABASE_NAME = "risk-zero.db";
-export const MOBILE_SCHEMA_VERSION = 1;
+export const MOBILE_SCHEMA_VERSION = 2;
 
 export const MOBILE_SCHEMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -66,6 +66,21 @@ CREATE TABLE IF NOT EXISTS sensor_readings (
   FOREIGN KEY (event_id) REFERENCES sensor_events(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS processed_videos (
+  id TEXT PRIMARY KEY NOT NULL,
+  event_id TEXT NOT NULL UNIQUE,
+  file_name TEXT NOT NULL,
+  local_uri TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  size_bytes INTEGER NOT NULL
+    CHECK (size_bytes >= 0),
+  duration_ms INTEGER NOT NULL
+    CHECK (duration_ms >= 0),
+  checksum_sha256 TEXT,
+  captured_at TEXT NOT NULL,
+  FOREIGN KEY (event_id) REFERENCES sensor_events(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS risk_assessments (
   id TEXT PRIMARY KEY NOT NULL,
   incident_id TEXT NOT NULL,
@@ -120,6 +135,8 @@ CREATE INDEX IF NOT EXISTS sensor_events_device_captured_idx
   ON sensor_events(device_id, captured_at DESC);
 CREATE INDEX IF NOT EXISTS sensor_readings_event_metric_idx
   ON sensor_readings(event_id, metric);
+CREATE INDEX IF NOT EXISTS processed_videos_captured_idx
+  ON processed_videos(captured_at DESC);
 CREATE INDEX IF NOT EXISTS risk_assessments_incident_evaluated_idx
   ON risk_assessments(incident_id, evaluated_at DESC);
 CREATE INDEX IF NOT EXISTS response_actions_incident_executed_idx

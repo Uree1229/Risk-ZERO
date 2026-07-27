@@ -16,18 +16,47 @@ function draft(index) {
   return {
     eventType: "presence",
     capturedAt,
-    readings: [
+    metrics: [
       {
-        id: `presence-${index}`,
-        metric: "presence",
-        label: "사람 감지",
-        value: true,
+        id: `dwell-${index}`,
+        metric: "dwell_seconds",
+        label: "체류 시간",
+        value: index * 10,
+        unit: "초",
         quality: "good",
         capturedAt,
       },
     ],
+    video: {
+      id: `video-${index}`,
+      fileName: `entrance-${index}.mp4`,
+      localUri: `file:///risk-zero/entrance-${index}.mp4`,
+      mimeType: "video/mp4",
+      sizeBytes: 1024 * index,
+      durationMs: 3000,
+      capturedAt,
+    },
   };
 }
+
+test("모듈 버퍼는 후처리 수치와 영상 파일 정보만 전달한다", async () => {
+  const moduleBuffer = new InMemoryModuleEventBuffer(device, 10);
+  moduleBuffer.append(draft(1));
+
+  const batch = await moduleBuffer.pullEvents(0, 10);
+
+  assert.equal(batch.events[0].metrics[0].value, 10);
+  assert.equal(batch.events[0].video.localUri, "file:///risk-zero/entrance-1.mp4");
+  assert.equal("readings" in batch.events[0], false);
+});
+
+test("유효하지 않은 수치형 지표는 모듈 버퍼에서 거부한다", () => {
+  const moduleBuffer = new InMemoryModuleEventBuffer(device, 10);
+  const invalid = draft(1);
+  invalid.metrics[0].value = Number.NaN;
+
+  assert.throws(() => moduleBuffer.append(invalid), TypeError);
+});
 
 test("동기화는 여러 배치를 저장한 후 마지막 순번까지 ACK한다", async () => {
   const moduleBuffer = new InMemoryModuleEventBuffer(device, 10);

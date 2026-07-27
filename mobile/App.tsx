@@ -12,8 +12,16 @@ import {
   View,
 } from "react-native";
 import { getSnapshot } from "./src/api";
-import { saveSnapshotLocally } from "./src/storage/local-database";
-import type { RiskLevel, SensorReading, SystemSnapshot } from "./src/types";
+import {
+  loadRecentEvents,
+  saveSnapshotLocally,
+} from "./src/storage/local-database";
+import type {
+  EventLogItem,
+  RiskLevel,
+  SensorReading,
+  SystemSnapshot,
+} from "./src/types";
 
 type TabId = "home" | "events" | "settings";
 
@@ -132,13 +140,13 @@ function HomeScreen({
   );
 }
 
-function EventsScreen({ snapshot }: { snapshot: SystemSnapshot }) {
+function EventsScreen({ events }: { events: EventLogItem[] }) {
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
       <Text style={styles.eyebrow}>EVENTS</Text>
       <Text style={styles.pageTitle}>최근 이벤트</Text>
       <View style={styles.eventList}>
-        {snapshot.recentEvents.map((event) => {
+        {events.map((event) => {
           const meta = levelMeta[event.level];
           return (
             <View style={styles.eventCard} key={event.id}>
@@ -184,6 +192,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>("home");
   const [scenarioId, setScenarioId] = useState("normal");
   const [snapshot, setSnapshot] = useState<SystemSnapshot | null>(null);
+  const [events, setEvents] = useState<EventLogItem[]>([]);
   const [source, setSource] = useState<"api" | "fallback">("fallback");
   const [refreshing, setRefreshing] = useState(false);
 
@@ -194,8 +203,13 @@ export default function App() {
     setSource(result.source);
     try {
       await saveSnapshotLocally(result.snapshot);
+      const localEvents = await loadRecentEvents();
+      setEvents(
+        localEvents.length > 0 ? localEvents : result.snapshot.recentEvents,
+      );
     } catch (error) {
       console.warn("Failed to save the mobile snapshot.", error);
+      setEvents(result.snapshot.recentEvents);
     }
     setRefreshing(false);
   }, [scenarioId]);
@@ -209,10 +223,10 @@ export default function App() {
 
   const content = useMemo(() => {
     if (!snapshot) return <View style={styles.loading}><ActivityIndicator color="#9FE3CC" size="large" /><Text style={styles.loadingText}>현관 상태를 불러오는 중</Text></View>;
-    if (activeTab === "events") return <EventsScreen snapshot={snapshot} />;
+    if (activeTab === "events") return <EventsScreen events={events} />;
     if (activeTab === "settings") return <SettingsScreen source={source} />;
     return <HomeScreen snapshot={snapshot} source={source} refreshing={refreshing} onRefresh={() => void load()} onScenario={selectScenario} />;
-  }, [activeTab, load, refreshing, selectScenario, snapshot, source]);
+  }, [activeTab, events, load, refreshing, selectScenario, snapshot, source]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
