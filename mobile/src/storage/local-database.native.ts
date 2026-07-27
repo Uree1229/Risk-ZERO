@@ -1,4 +1,9 @@
 import * as SQLite from "expo-sqlite";
+import type {
+  ModuleDevice,
+  ModuleEvent,
+  ModuleSyncState,
+} from "../module/contracts";
 import type { SensorReading, SystemSnapshot } from "../types";
 import {
   MOBILE_DATABASE_NAME,
@@ -195,4 +200,185 @@ export async function saveSnapshotLocally(snapshot: SystemSnapshot) {
       receivedAt,
     );
   });
+}
+
+function moduleIncidentId(event: ModuleEvent) {
+  return `incident:module:${event.id}`;
+}
+
+export async function beginModuleSync(
+  device: ModuleDevice,
+): Promise<ModuleSyncState> {
+  const database = await getDatabase();
+  const now = new Date().toISOString();
+
+  await database.withExclusiveTransactionAsync(async (transaction) => {
+    await transaction.runAsync(
+      `INSERT INTO devices
+         (id, display_name, provider, transport, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         display_name = excluded.display_name,
+         provider = excluded.provider,
+         transport = excluded.transport,
+         updated_at = excluded.updated_at`,
+      device.id,
+      device.displayName,
+      device.provider,
+      device.transport,
+      now,
+      now,
+    );
+    await transaction.runAsync(
+      `INSERT INTO sync_states
+         (device_id, last_received_sequence, last_acknowledged_sequence,
+          last_connected_at, sync_status, updated_at)
+       VALUES (?, 0, 0, ?, 'syncing', ?)
+       ON CONFLICT(device_id) DO UPDATE SET
+         last_connected_at = excluded.last_connected_at,
+         sync_status = 'syncing',
+         updated_at = excluded.updated_at`,
+      device.id,
+      now,
+      now,
+    );
+  });
+
+  const state = await database.getFirstAsync<{
+    device_id: string;
+    last_received_sequence: number;
+    last_acknowledged_sequence: number;
+    sync_status: ModuleSyncState["status"];
+  }>(
+    `SELECT device_id, last_received_sequence, last_acknowledged_sequence, sync_status
+       FROM sync_states
+      WHERE device_id = ?`,
+    device.id,
+  );
+  if (!state) throw new Error(`Sync state not found for ${device.id}.`);
+
+  return {
+    deviceId: state.device_id,
+    lastReceivedSequence: state.last_received_sequence,
+    lastAcknowledgedSequence: state.last_acknowledged_sequence,
+    status: state.sync_status,
+  };
+}
+
+export async function saveModuleEvents(
+  device: ModuleDevice,
+  events: ModuleEvent[],
+) {
+  if (events.length === 0) return 0;
+  const database = await getDatabase();
+  const receivedAt = new Date().toISOString();
+  let storedEventCount = 0;
+
+  await database.withExclusiveTransactionAsync(async (transaction) => {
+    for (const event of events) {
+      const incidentId = moduleIncidentId(event);
+      await transaction.runAsync(
+        `INSERT OR IGNORE INTO incidents
+           (id, device_id, scenario_key, title, status, max_risk_level,
+            max_risk_score, started_at, updated_at)
+         VALUES (?, ?, 'module', ?, 'open', 'pending', NULL, ?, ?)`,
+        incidentId,
+        device.id,
+        event.eventType,
+        event.capturedAt,
+        receivedAt,
+      );
+
+      const insertResult = await transaction.runAsync(
+        `INSERT OR IGNORE INTO sensor_events
+           (id, incident_id, device_id, event_type, sequence, dedupe_key,
+            captured_at, received_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        event.id,
+        incidentId,
+        device.id,
+        event.eventType,
+        event.sequence,
+        event.dedupeKey,
+        event.capturedAt,
+        receivedAt,
+      );
+
+      if (insertResult.changes === 0) continue;
+      storedEventCount += 1;
+
+      for (const reading of event.readings) {
+        const [valueType, valueNumber, valueText, valueBoolean] =
+          readingValues(reading);
+        await transaction.runAsync(
+          `INSERT INTO sensor_readings
+             (id, event_id, metric, label, value_type, value_number, value_text,
+              value_boolean, unit, quality, captured_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `${event.id}:${reading.id}`,
+          event.id,
+          reading.metric,
+          reading.label,
+          valueType,
+          valueNumber,
+          valueText,
+          valueBoolean,
+          reading.unit ?? null,
+          reading.quality,
+          reading.capturedAt,
+        );
+      }
+    }
+
+    const lastSequence = events[events.length - 1].sequence;
+    await transaction.runAsync(
+      `UPDATE sync_states
+          SET last_received_sequence = max(last_received_sequence, ?),
+              updated_at = ?
+        WHERE device_id = ?`,
+      lastSequence,
+      receivedAt,
+      device.id,
+    );
+  });
+
+  return storedEventCount;
+}
+
+export async function markModuleEventsAcknowledged(
+  deviceId: string,
+  sequence: number,
+) {
+  const database = await getDatabase();
+  await database.runAsync(
+    `UPDATE sync_states
+        SET last_acknowledged_sequence = max(last_acknowledged_sequence, ?),
+            updated_at = ?
+      WHERE device_id = ?`,
+    sequence,
+    new Date().toISOString(),
+    deviceId,
+  );
+}
+
+export async function completeModuleSync(deviceId: string) {
+  const database = await getDatabase();
+  await database.runAsync(
+    `UPDATE sync_states
+        SET sync_status = 'idle', updated_at = ?
+      WHERE device_id = ?`,
+    new Date().toISOString(),
+    deviceId,
+  );
+}
+
+export async function failModuleSync(deviceId: string, _message: string) {
+  const database = await getDatabase();
+  await database.runAsync(
+    `UPDATE sync_states
+        SET sync_status = 'error', updated_at = ?
+      WHERE device_id = ?`,
+    new Date().toISOString(),
+    deviceId,
+  );
 }

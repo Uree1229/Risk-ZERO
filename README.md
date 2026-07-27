@@ -5,10 +5,11 @@
 ## 현재 구현 범위
 
 - `web/`: 시나리오 선택, 장치 상태, 최근 사건, 위험 단계와 대응 미리보기를 제공하는 웹 모니터
-- `mobile/`: 웹 API를 소비하고 연결 실패 시 내장 시연 데이터로 전환하는 Expo 기반 모바일 MVP
+- `mobile/`: SQLite 로컬 저장, 모듈 이벤트 동기화 계약, 오프라인 시연 데이터를 포함한 Expo 기반 모바일 MVP
 - `web/app/api/`: 센서 이벤트 수신, 사건·장치 조회, 보호자 피드백, 스냅샷 API
 - `web/db/`, `web/drizzle/`: Cloudflare D1용 스키마, 저장소 계층, 마이그레이션과 시연 데이터
 - `docs/database-design.md`: ERD, 센서 확장 모델, 보존기간과 조회 흐름
+- `docs/module-sync.md`: 모듈 임시 버퍼, 이벤트 순번, ACK와 재연결 규칙
 - `docs/`: 제안서·발표자료와 아래 설계 문서
   - [운영·데이터·위험 대응 정책 v0.2](docs/RISK-ZERO_Policy_Document_초안_v0.2.md)
   - [위험도 산정 및 검증 방안 v0.1](docs/RISK-ZERO_위험도_산정_및_검증_방안_초안_v0.1.md)
@@ -21,14 +22,10 @@
 
 ```text
 외부 센서 계층
-    ↓ SensorGateway / POST /api/sensor-events
-SensorEvent 정규화
-    ↓
-D1: sensor_events + sensor_readings + incidents
-    ↓ RiskEngine
-RiskAssessment (현재: 고정 더미 또는 pending)
-    ↓
-웹 / 모바일 모니터링 + 보호자 피드백
+    ├─ 모듈 임시 버퍼 → 모바일 SQLite → 모바일 모니터링
+    └─ SensorGateway / API → 웹 DB → 웹 모니터링
+
+위험도 판정: 현재 고정 더미 또는 pending
 ```
 
 실제 센서를 연결할 때는 `web/lib/domain.ts`의 `SensorGateway` 계약과 `POST /api/sensor-events` 형식에 맞춰 변환합니다. 위험도 정책이 확정되면 `RiskEngine` 구현체를 추가하고 `risk_engine_versions`에 버전을 기록합니다.
@@ -85,6 +82,7 @@ cd web
 pnpm test
 
 cd ../mobile
+pnpm test
 pnpm typecheck
 ```
 

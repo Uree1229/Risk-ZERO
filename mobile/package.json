@@ -2,12 +2,14 @@
   "name": "risk-zero-mobile",
   "version": "0.1.1",
   "private": true,
+  "type": "module",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "test": "node --test src/module/module-sync.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
