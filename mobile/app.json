@@ -12,6 +12,9 @@
     "android": {
       "package": "com.pixelzero.riskzero",
       "versionCode": 2
-    }
+    },
+    "plugins": [
+      "expo-sqlite"
+    ]
   }
 }

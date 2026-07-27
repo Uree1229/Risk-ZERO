@@ -1,0 +1,127 @@
+export const MOBILE_DATABASE_NAME = "risk-zero.db";
+export const MOBILE_SCHEMA_VERSION = 1;
+
+export const MOBILE_SCHEMA_SQL = `
+PRAGMA journal_mode = WAL;
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version INTEGER PRIMARY KEY NOT NULL,
+  applied_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS devices (
+  id TEXT PRIMARY KEY NOT NULL,
+  display_name TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  transport TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS incidents (
+  id TEXT PRIMARY KEY NOT NULL,
+  device_id TEXT NOT NULL,
+  scenario_key TEXT NOT NULL,
+  title TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open'
+    CHECK (status IN ('open', 'resolved')),
+  max_risk_level TEXT NOT NULL DEFAULT 'pending'
+    CHECK (max_risk_level IN ('pending', 'normal', 'watch', 'warning', 'critical')),
+  max_risk_score REAL,
+  started_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS sensor_events (
+  id TEXT PRIMARY KEY NOT NULL,
+  incident_id TEXT NOT NULL,
+  device_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  sequence INTEGER,
+  dedupe_key TEXT NOT NULL,
+  captured_at TEXT NOT NULL,
+  received_at TEXT NOT NULL,
+  FOREIGN KEY (incident_id) REFERENCES incidents(id) ON DELETE CASCADE,
+  FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
+  UNIQUE (device_id, dedupe_key),
+  UNIQUE (device_id, sequence)
+);
+
+CREATE TABLE IF NOT EXISTS sensor_readings (
+  id TEXT PRIMARY KEY NOT NULL,
+  event_id TEXT NOT NULL,
+  metric TEXT NOT NULL,
+  label TEXT NOT NULL,
+  value_type TEXT NOT NULL
+    CHECK (value_type IN ('number', 'text', 'boolean')),
+  value_number REAL,
+  value_text TEXT,
+  value_boolean INTEGER,
+  unit TEXT,
+  quality TEXT NOT NULL
+    CHECK (quality IN ('good', 'degraded', 'unknown')),
+  captured_at TEXT NOT NULL,
+  FOREIGN KEY (event_id) REFERENCES sensor_events(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS risk_assessments (
+  id TEXT PRIMARY KEY NOT NULL,
+  incident_id TEXT NOT NULL,
+  trigger_event_id TEXT NOT NULL,
+  engine_name TEXT NOT NULL,
+  engine_version TEXT,
+  policy_version TEXT,
+  risk_score REAL,
+  risk_level TEXT NOT NULL
+    CHECK (risk_level IN ('pending', 'normal', 'watch', 'warning', 'critical')),
+  summary TEXT NOT NULL,
+  reasons_json TEXT NOT NULL,
+  is_dummy INTEGER NOT NULL DEFAULT 1
+    CHECK (is_dummy IN (0, 1)),
+  evaluated_at TEXT NOT NULL,
+  FOREIGN KEY (incident_id) REFERENCES incidents(id) ON DELETE CASCADE,
+  FOREIGN KEY (trigger_event_id) REFERENCES sensor_events(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS response_actions (
+  id TEXT PRIMARY KEY NOT NULL,
+  incident_id TEXT NOT NULL,
+  assessment_id TEXT,
+  action_type TEXT NOT NULL,
+  status TEXT NOT NULL,
+  message TEXT,
+  executed_at TEXT NOT NULL,
+  FOREIGN KEY (incident_id) REFERENCES incidents(id) ON DELETE CASCADE,
+  FOREIGN KEY (assessment_id) REFERENCES risk_assessments(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY NOT NULL,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sync_states (
+  device_id TEXT PRIMARY KEY NOT NULL,
+  last_received_sequence INTEGER NOT NULL DEFAULT 0,
+  last_acknowledged_sequence INTEGER NOT NULL DEFAULT 0,
+  last_connected_at TEXT,
+  sync_status TEXT NOT NULL DEFAULT 'idle'
+    CHECK (sync_status IN ('idle', 'syncing', 'error')),
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS incidents_device_started_idx
+  ON incidents(device_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS sensor_events_device_captured_idx
+  ON sensor_events(device_id, captured_at DESC);
+CREATE INDEX IF NOT EXISTS sensor_readings_event_metric_idx
+  ON sensor_readings(event_id, metric);
+CREATE INDEX IF NOT EXISTS risk_assessments_incident_evaluated_idx
+  ON risk_assessments(incident_id, evaluated_at DESC);
+CREATE INDEX IF NOT EXISTS response_actions_incident_executed_idx
+  ON response_actions(incident_id, executed_at DESC);
+`;

@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { getSnapshot } from "./src/api";
+import { saveSnapshotLocally } from "./src/storage/local-database";
 import type { RiskLevel, SensorReading, SystemSnapshot } from "./src/types";
 
 type TabId = "home" | "events" | "settings";
@@ -191,6 +192,11 @@ export default function App() {
     const result = await getSnapshot(nextScenario);
     setSnapshot(result.snapshot);
     setSource(result.source);
+    try {
+      await saveSnapshotLocally(result.snapshot);
+    } catch (error) {
+      console.warn("Failed to save the mobile snapshot.", error);
+    }
     setRefreshing(false);
   }, [scenarioId]);
 
