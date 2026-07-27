@@ -24,6 +24,7 @@ export function snapshotToEventLogItem(
 ): EventLogItem {
   return {
     id: snapshot.sensorEvent.id,
+    capturedAt: snapshot.generatedAt,
     occurredAt: formatEventTime(snapshot.generatedAt),
     title: snapshot.scenarioLabel,
     detail: snapshot.assessment.summary,

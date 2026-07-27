@@ -54,6 +54,9 @@ ACK 전 연결이 끊기면 모바일의 `last_received_sequence`가 `last_ackno
 - 모듈 순환 버퍼 모델: `mobile/src/module/event-buffer.ts`
 - 동기화 서비스: `mobile/src/module/sync-service.ts`
 - 모바일 SQLite 연결: `mobile/src/module/mobile-sync.ts`
+- 이벤트·영상 조회 쿼리: `mobile/src/storage/local-database.native.ts`
+- 캘린더 분류: `mobile/src/events/calendar.ts`
+- 이벤트 상세·영상 재생 화면: `mobile/src/events/EventsScreen.tsx`
 - 동기화 테스트: `mobile/src/module/module-sync.test.mjs`
 
-현재 구현은 실제 BLE 통신 대신 메모리 모듈을 사용한다. 하드웨어 통신 계층은 영상 전송과 파일 저장까지 끝낸 뒤 수치형 `metrics`와 영상 `localUri`를 반환하는 `ModuleGateway`를 구현하면 된다.
+현재 구현은 실제 BLE 통신 대신 메모리 모듈을 사용한다. 하드웨어 통신 계층은 영상 전송과 파일 저장까지 끝낸 뒤 수치형 `metrics`와 영상 `localUri`를 반환하는 `ModuleGateway`를 구현하면 된다. 저장된 `localUri`가 이벤트 상세 화면에 전달되면 영상 플레이어가 활성화되며, 파일이 없으면 입력 대기 화면을 보여준다.

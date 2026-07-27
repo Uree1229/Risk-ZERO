@@ -221,15 +221,28 @@ export async function loadRecentEvents(limit = 50): Promise<EventLogItem[]> {
     detail: string;
     risk_level: RiskLevel;
     risk_score: number | null;
+    video_local_uri: string | null;
+    video_file_name: string | null;
+    video_mime_type: string | null;
+    video_size_bytes: number | null;
+    video_duration_ms: number | null;
+    video_checksum_sha256: string | null;
   }>(
     `SELECT se.id,
             se.captured_at,
             i.title,
             COALESCE(NULLIF(ra.summary, ''), se.event_type) AS detail,
             COALESCE(ra.risk_level, 'pending') AS risk_level,
-            ra.risk_score
+            ra.risk_score,
+            pv.local_uri AS video_local_uri,
+            pv.file_name AS video_file_name,
+            pv.mime_type AS video_mime_type,
+            pv.size_bytes AS video_size_bytes,
+            pv.duration_ms AS video_duration_ms,
+            pv.checksum_sha256 AS video_checksum_sha256
        FROM sensor_events se
        JOIN incidents i ON i.id = se.incident_id
+       LEFT JOIN processed_videos pv ON pv.event_id = se.id
        LEFT JOIN risk_assessments ra ON ra.id = (
          SELECT latest_ra.id
            FROM risk_assessments latest_ra
@@ -244,11 +257,27 @@ export async function loadRecentEvents(limit = 50): Promise<EventLogItem[]> {
 
   return rows.map((row) => ({
     id: row.id,
+    capturedAt: row.captured_at,
     occurredAt: formatEventTime(row.captured_at),
     title: row.title,
     detail: row.detail,
     level: row.risk_level,
     score: row.risk_score,
+    video:
+      row.video_local_uri &&
+      row.video_file_name &&
+      row.video_mime_type &&
+      row.video_size_bytes !== null &&
+      row.video_duration_ms !== null
+        ? {
+            localUri: row.video_local_uri,
+            fileName: row.video_file_name,
+            mimeType: row.video_mime_type,
+            sizeBytes: row.video_size_bytes,
+            durationMs: row.video_duration_ms,
+            checksumSha256: row.video_checksum_sha256 ?? undefined,
+          }
+        : undefined,
   }));
 }
 

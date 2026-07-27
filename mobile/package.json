@@ -9,13 +9,14 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "node --test src/module/module-sync.test.mjs src/storage/event-log.test.mjs",
+    "test": "node --test src/events/calendar.test.mjs src/module/module-sync.test.mjs src/storage/event-log.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "expo": "~57.0.8",
     "expo-sqlite": "~57.0.1",
     "expo-status-bar": "~57.0.1",
+    "expo-video": "~57.0.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.0",

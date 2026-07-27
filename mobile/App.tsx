@@ -16,6 +16,7 @@ import {
   loadRecentEvents,
   saveSnapshotLocally,
 } from "./src/storage/local-database";
+import { EventsScreen } from "./src/events/EventsScreen";
 import type {
   EventLogItem,
   RiskLevel,
@@ -140,33 +141,6 @@ function HomeScreen({
   );
 }
 
-function EventsScreen({ events }: { events: EventLogItem[] }) {
-  return (
-    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-      <Text style={styles.eyebrow}>EVENTS</Text>
-      <Text style={styles.pageTitle}>최근 이벤트</Text>
-      <View style={styles.eventList}>
-        {events.map((event) => {
-          const meta = levelMeta[event.level];
-          return (
-            <View style={styles.eventCard} key={event.id}>
-              <View style={[styles.eventIndicator, { backgroundColor: meta.color }]} />
-              <View style={styles.eventBody}>
-                <View style={styles.eventTopline}>
-                  <Text style={styles.eventTitle}>{event.title}</Text>
-                  <Text style={styles.eventTime}>{event.occurredAt}</Text>
-                </View>
-                <Text style={styles.eventDetail}>{event.detail}</Text>
-                <Text style={[styles.eventLevel, { color: meta.color }]}>{meta.label} · {event.score ?? "-"}점</Text>
-              </View>
-            </View>
-          );
-        })}
-      </View>
-    </ScrollView>
-  );
-}
-
 function SettingsScreen({ source }: { source: "api" | "fallback" }) {
   const rows = [
     ["실행 모드", "DEMO"],
@@ -204,8 +178,20 @@ export default function App() {
     try {
       await saveSnapshotLocally(result.snapshot);
       const localEvents = await loadRecentEvents();
+      const mergedEvents = new Map(
+        result.snapshot.recentEvents.map((event) => [event.id, event]),
+      );
+      for (const event of localEvents) mergedEvents.set(event.id, event);
       setEvents(
-        localEvents.length > 0 ? localEvents : result.snapshot.recentEvents,
+        [...mergedEvents.values()].sort((left, right) => {
+          const leftTime = left.capturedAt
+            ? new Date(left.capturedAt).getTime()
+            : 0;
+          const rightTime = right.capturedAt
+            ? new Date(right.capturedAt).getTime()
+            : 0;
+          return rightTime - leftTime;
+        }),
       );
     } catch (error) {
       console.warn("Failed to save the mobile snapshot.", error);
@@ -296,15 +282,6 @@ const styles = StyleSheet.create({
   metricHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   metricLabel: { color: "#899799", fontSize: 9 },
   metricValue: { color: "#F4F7F7", fontSize: 20, fontWeight: "800", letterSpacing: -.6, marginTop: 8 },
-  eventList: { gap: 10, marginTop: 24 },
-  eventCard: { flexDirection: "row", overflow: "hidden", borderRadius: 14, borderWidth: 1, borderColor: "#223032", backgroundColor: "#11191A" },
-  eventIndicator: { width: 4 },
-  eventBody: { flex: 1, padding: 15 },
-  eventTopline: { flexDirection: "row", justifyContent: "space-between" },
-  eventTitle: { color: "#ECF1F1", fontSize: 12, fontWeight: "800" },
-  eventTime: { color: "#657477", fontSize: 9 },
-  eventDetail: { color: "#899799", fontSize: 10, marginTop: 7 },
-  eventLevel: { fontSize: 9, fontWeight: "800", marginTop: 10 },
   settingsCard: { marginTop: 24, borderRadius: 14, borderWidth: 1, borderColor: "#223032", backgroundColor: "#11191A", overflow: "hidden" },
   settingRow: { minHeight: 52, paddingHorizontal: 15, flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#283436" },
   settingLabel: { color: "#899799", fontSize: 10 },

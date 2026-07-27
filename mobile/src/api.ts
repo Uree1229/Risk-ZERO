@@ -12,7 +12,13 @@ const scenarioFixtures: Record<string, { label: string; score: number; level: Ex
 
 function fallbackSnapshot(scenarioId: string): SystemSnapshot {
   const fixture = scenarioFixtures[scenarioId] ?? scenarioFixtures.normal;
-  const now = new Date().toISOString();
+  const currentTime = new Date();
+  const now = currentTime.toISOString();
+  const atToday = (hour: number, minute: number) => {
+    const date = new Date(currentTime);
+    date.setHours(hour, minute, 0, 0);
+    return date.toISOString();
+  };
   return {
     mode: "demo",
     scenarioId,
@@ -31,9 +37,9 @@ function fallbackSnapshot(scenarioId: string): SystemSnapshot {
     assessment: { status: "demo", engine: "DemoPassThroughRiskEngine", algorithmVersion: null, score: fixture.score, level: fixture.level, summary: fixture.summary, reasons: fixture.reasons },
     response: { status: "preview", actions: fixture.level === "normal" ? ["standby"] : ["guardian_notice"], message: fixture.response },
     recentEvents: [
-      { id: "m1", occurredAt: "17:24", title: "정상 방문", detail: "7초 체류 · 진동 없음", level: "normal", score: 14 },
-      { id: "m2", occurredAt: "14:10", title: "주의 관찰", detail: "28초 체류 · 진동 1회", level: "watch", score: 46 },
-      { id: "m3", occurredAt: "09:31", title: "위험 징후", detail: "49초 체류 · 반복 진동", level: "warning", score: 68 },
+      { id: "m1", capturedAt: atToday(17, 24), occurredAt: "17:24", title: "정상 방문", detail: "7초 체류 · 진동 없음", level: "normal", score: 14 },
+      { id: "m2", capturedAt: atToday(14, 10), occurredAt: "14:10", title: "주의 관찰", detail: "28초 체류 · 진동 1회", level: "watch", score: 46 },
+      { id: "m3", capturedAt: atToday(9, 31), occurredAt: "09:31", title: "위험 징후", detail: "49초 체류 · 반복 진동", level: "warning", score: 68 },
     ],
   };
 }

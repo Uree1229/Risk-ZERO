@@ -13,11 +13,20 @@ export interface SensorReading {
 
 export interface EventLogItem {
   id: string;
+  capturedAt?: string;
   occurredAt: string;
   title: string;
   detail: string;
   level: RiskLevel;
   score: number | null;
+  video?: {
+    localUri: string;
+    fileName: string;
+    mimeType: string;
+    sizeBytes: number;
+    durationMs: number;
+    checksumSha256?: string;
+  };
 }
 
 export interface SystemSnapshot {
