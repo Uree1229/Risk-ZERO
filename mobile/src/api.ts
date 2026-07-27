@@ -26,7 +26,14 @@ function fallbackSnapshot(scenarioId: string): SystemSnapshot {
     generatedAt: now,
     sensorEvent: {
       id: `mobile-fallback-${scenarioId}`,
-      source: { provider: "MobileDemoFallback", deviceId: "RZ-MOBILE-01", transport: "demo" },
+      source: {
+        provider: "MobileDemoFallback",
+        deviceId: "RZ-MOBILE-01",
+        transport: "demo",
+        batteryPercent: 78,
+        storageUsedBytes: 186 * 1024 * 1024,
+        storageCapacityBytes: 1024 * 1024 * 1024,
+      },
       readings: [
         { id: "presence", metric: "presence", label: "사람 감지", value: true, quality: "good", capturedAt: now },
         { id: "dwell", metric: "dwell_seconds", label: "체류 시간", value: fixture.dwell, unit: "초", quality: "good", capturedAt: now },

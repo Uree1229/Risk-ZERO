@@ -5,6 +5,9 @@ export interface ModuleDevice {
   displayName: string;
   provider: string;
   transport: ModuleTransport;
+  batteryPercent?: number;
+  storageUsedBytes?: number;
+  storageCapacityBytes?: number;
 }
 
 export interface ModuleEventDraft {
@@ -26,8 +29,8 @@ export interface ProcessedMetric {
 }
 
 /**
- * 하드웨어 어댑터가 앱 저장소로 전송을 끝낸 후 넘기는 영상 정보입니다.
- * SQLite에는 영상 바이트가 아니라 이 메타데이터와 localUri만 저장합니다.
+ * 하드웨어 어댑터가 모바일이 읽을 수 있는 임시 경로로 전송한 영상 정보입니다.
+ * 동기화 계층은 파일을 앱 전용 저장소로 복사한 뒤 최종 localUri만 SQLite에 저장합니다.
  */
 export interface ProcessedVideoFile {
   id: string;

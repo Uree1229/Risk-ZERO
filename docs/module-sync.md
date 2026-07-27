@@ -15,10 +15,10 @@
 | 구분 | 내용 | 모바일 저장 위치 |
 |---|---|---|
 | 수치형 지표 | 체류시간, 거리, 충격량, 반복 동작 점수 등 | SQLite `sensor_readings` |
-| 후처리 영상 | 하드웨어가 필요한 구간만 추출한 영상 파일 | 앱 전용 파일 저장소 |
+| 후처리 영상 | 하드웨어가 필요한 구간만 추출한 임시 영상 파일 | 앱 전용 파일 저장소 |
 | 영상 메타데이터 | 파일명, 경로, 형식, 크기, 길이, 체크섬 | SQLite `processed_videos` |
 
-영상 바이트를 SQLite에 BLOB으로 넣지 않는다. 하드웨어 통신 어댑터가 앱 파일 저장소로 전송을 완료한 뒤 `localUri`를 포함한 이벤트를 동기화 서비스에 전달한다.
+영상 바이트를 SQLite에 BLOB으로 넣지 않는다. 하드웨어 통신 어댑터는 모바일이 읽을 수 있는 임시 `localUri`를 전달한다. 동기화 서비스가 이를 앱 전용 문서 저장소로 복사하고 파일 크기를 확인한 뒤 최종 경로를 DB에 기록한다. 파일 저장과 DB 기록이 모두 끝난 이벤트까지만 모듈에 ACK한다.
 
 ## 동기화 순서
 
@@ -55,8 +55,12 @@ ACK 전 연결이 끊기면 모바일의 `last_received_sequence`가 `last_ackno
 - 동기화 서비스: `mobile/src/module/sync-service.ts`
 - 모바일 SQLite 연결: `mobile/src/module/mobile-sync.ts`
 - 이벤트·영상 조회 쿼리: `mobile/src/storage/local-database.native.ts`
+- 영상 파일 보관·검증: `mobile/src/media/processed-video-storage.native.ts`
+- 영상 보존 한도: `mobile/src/media/video-retention.ts`
+- 위험 알림: `mobile/src/notifications/risk-notifications.native.ts`
 - 캘린더 분류: `mobile/src/events/calendar.ts`
+- 이벤트 검색·필터: `mobile/src/events/event-filter.ts`
 - 이벤트 상세·영상 재생 화면: `mobile/src/events/EventsScreen.tsx`
 - 동기화 테스트: `mobile/src/module/module-sync.test.mjs`
 
-현재 구현은 실제 BLE 통신 대신 메모리 모듈을 사용한다. 하드웨어 통신 계층은 영상 전송과 파일 저장까지 끝낸 뒤 수치형 `metrics`와 영상 `localUri`를 반환하는 `ModuleGateway`를 구현하면 된다. 저장된 `localUri`가 이벤트 상세 화면에 전달되면 영상 플레이어가 활성화되며, 파일이 없으면 입력 대기 화면을 보여준다.
+현재 구현은 실제 BLE 통신 대신 메모리 모듈을 사용한다. 하드웨어 통신 계층은 모바일이 읽을 수 있는 임시 영상 경로와 수치형 `metrics`를 반환하는 `ModuleGateway`를 구현하면 된다. 모바일이 앱 전용 저장소로 옮긴 최종 `localUri`가 이벤트 상세 화면에 전달되면 영상 플레이어가 활성화되며, 파일이 없으면 입력 대기 화면을 보여준다.

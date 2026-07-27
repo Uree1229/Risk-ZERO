@@ -1,5 +1,5 @@
 import { useEvent } from "expo";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Modal,
@@ -8,10 +8,16 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useVideoPlayer, VideoView } from "expo-video";
-import type { EventLogItem, RiskLevel } from "../types";
+import type {
+  EventCategory,
+  EventLogItem,
+  EventReview,
+  RiskLevel,
+} from "../types";
 import {
   buildMonthCells,
   eventDate,
@@ -23,6 +29,10 @@ import {
   toDateKey,
   type EventGroupMode,
 } from "./calendar";
+import {
+  filterEvents,
+  type EventCategoryFilter,
+} from "./event-filter";
 
 const levelMeta: Record<
   RiskLevel,
@@ -34,6 +44,33 @@ const levelMeta: Record<
   warning: { label: "경고", color: "#FF9F68", soft: "#2F2019" },
   critical: { label: "고위험", color: "#FF6C73", soft: "#301A1D" },
 };
+
+const eventCategories: Array<{ id: EventCategory; label: string }> = [
+  { id: "unclassified", label: "미분류" },
+  { id: "resident", label: "거주자" },
+  { id: "visitor", label: "방문자" },
+  { id: "delivery", label: "배달" },
+  { id: "suspicious", label: "수상 행동" },
+  { id: "intrusion", label: "침입 시도" },
+  { id: "other", label: "기타" },
+];
+
+function categoryLabel(category?: EventCategory) {
+  return (
+    eventCategories.find((item) => item.id === category)?.label ?? "미분류"
+  );
+}
+
+function reviewFor(event: EventLogItem): EventReview {
+  return (
+    event.review ?? {
+      category: "unclassified",
+      isFalseAlarm: false,
+      isImportant: false,
+      memo: "",
+    }
+  );
+}
 
 function eventDateLabel(event: EventLogItem) {
   const date = eventDate(event);
@@ -87,9 +124,20 @@ function EventCard({
           {event.detail}
         </Text>
         <View style={styles.eventFooter}>
-          <Text style={[styles.eventLevel, { color: meta.color }]}>
-            {meta.label} · {event.score ?? "-"}점
-          </Text>
+          <View style={styles.eventTags}>
+            <Text style={[styles.eventLevel, { color: meta.color }]}>
+              {meta.label} · {event.score ?? "-"}점
+            </Text>
+            {event.review?.category &&
+            event.review.category !== "unclassified" ? (
+              <Text style={styles.categoryTag}>
+                {categoryLabel(event.review.category)}
+              </Text>
+            ) : null}
+            {event.review?.isImportant ? (
+              <Text style={styles.importantTag}>중요</Text>
+            ) : null}
+          </View>
           <Text style={styles.eventChevron}>›</Text>
         </View>
       </View>
@@ -193,11 +241,37 @@ function EventVideoPlayer({ event }: { event: EventLogItem }) {
 function EventDetail({
   event,
   onBack,
+  onSaveReview,
 }: {
   event: EventLogItem;
   onBack: () => void;
+  onSaveReview: (review: EventReview) => Promise<void>;
 }) {
   const meta = levelMeta[event.level];
+  const [review, setReview] = useState<EventReview>(() => reviewFor(event));
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setReview(reviewFor(event));
+    setSaved(false);
+  }, [event.id]);
+
+  const saveReview = async () => {
+    setSaving(true);
+    try {
+      await onSaveReview(review);
+      setSaved(true);
+    } catch (error) {
+      Alert.alert(
+        "분류 저장 실패",
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <ScrollView
       contentContainerStyle={styles.modalScroll}
@@ -227,6 +301,105 @@ function EventDetail({
       <View style={styles.detailSection}>
         <Text style={styles.detailSectionLabel}>판정 내용</Text>
         <Text style={styles.detailCopy}>{event.detail}</Text>
+      </View>
+
+      <View style={styles.detailSection}>
+        <View style={styles.detailSectionTopline}>
+          <Text style={styles.detailSectionLabel}>이벤트 분류</Text>
+          <Text style={styles.reviewStatus}>
+            {saved ? "저장됨" : event.review ? "수정 가능" : "미분류"}
+          </Text>
+        </View>
+        <View style={styles.categoryGrid}>
+          {eventCategories.map((category) => {
+            const active = review.category === category.id;
+            return (
+              <Pressable
+                key={category.id}
+                style={[
+                  styles.categoryButton,
+                  active && styles.categoryButtonActive,
+                ]}
+                onPress={() => {
+                  setReview({ ...review, category: category.id });
+                  setSaved(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.categoryButtonText,
+                    active && styles.categoryButtonTextActive,
+                  ]}
+                >
+                  {category.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.reviewToggleRow}>
+          <Pressable
+            style={[
+              styles.reviewToggle,
+              review.isImportant && styles.reviewToggleActive,
+            ]}
+            onPress={() => {
+              setReview({ ...review, isImportant: !review.isImportant });
+              setSaved(false);
+            }}
+          >
+            <Text
+              style={[
+                styles.reviewToggleText,
+                review.isImportant && styles.reviewToggleTextActive,
+              ]}
+            >
+              ★ 중요 기록
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.reviewToggle,
+              review.isFalseAlarm && styles.falseAlarmToggleActive,
+            ]}
+            onPress={() => {
+              setReview({ ...review, isFalseAlarm: !review.isFalseAlarm });
+              setSaved(false);
+            }}
+          >
+            <Text
+              style={[
+                styles.reviewToggleText,
+                review.isFalseAlarm && styles.falseAlarmToggleTextActive,
+              ]}
+            >
+              오탐으로 표시
+            </Text>
+          </Pressable>
+        </View>
+
+        <TextInput
+          multiline
+          maxLength={300}
+          placeholder="확인한 내용이나 메모를 입력하세요."
+          placeholderTextColor="#536164"
+          style={styles.memoInput}
+          value={review.memo}
+          onChangeText={(memo) => {
+            setReview({ ...review, memo });
+            setSaved(false);
+          }}
+        />
+        <Pressable
+          disabled={saving}
+          style={[styles.reviewSaveButton, saving && styles.disabledButton]}
+          onPress={() => void saveReview()}
+        >
+          <Text style={styles.reviewSaveButtonText}>
+            {saving ? "저장 중" : "분류 저장"}
+          </Text>
+        </Pressable>
       </View>
 
       <View style={styles.detailSection}>
@@ -261,6 +434,9 @@ function ArchiveView({
   onMode: (mode: EventGroupMode) => void;
   onEvent: (event: EventLogItem) => void;
 }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] =
+    useState<EventCategoryFilter>("all");
   const monthCells = useMemo(() => buildMonthCells(month), [month]);
   const eventCountByDate = useMemo(() => {
     const counts = new Map<string, number>();
@@ -274,9 +450,12 @@ function ArchiveView({
     () => eventsForDate(events, selectedDateKey),
     [events, selectedDateKey],
   );
+  const filteredEvents = useMemo(() => {
+    return filterEvents(selectedEvents, searchQuery, categoryFilter);
+  }, [categoryFilter, searchQuery, selectedEvents]);
   const groups = useMemo(
-    () => groupEvents(selectedEvents, mode),
-    [mode, selectedEvents],
+    () => groupEvents(filteredEvents, mode),
+    [filteredEvents, mode],
   );
   const [, selectedMonth, selectedDay] = selectedDateKey
     .split("-")
@@ -363,7 +542,12 @@ function ArchiveView({
           <Text style={styles.resultDate}>
             {selectedMonth}월 {selectedDay}일
           </Text>
-          <Text style={styles.resultCount}>{selectedEvents.length}건</Text>
+          <Text style={styles.resultCount}>
+            {filteredEvents.length}건
+            {filteredEvents.length !== selectedEvents.length
+              ? ` / 전체 ${selectedEvents.length}건`
+              : ""}
+          </Text>
         </View>
         <View style={styles.modeSwitch}>
           {(
@@ -392,6 +576,46 @@ function ArchiveView({
           ))}
         </View>
       </View>
+
+      <TextInput
+        placeholder="제목·내용·메모 검색"
+        placeholderTextColor="#536164"
+        style={styles.searchInput}
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+      <ScrollView
+        horizontal
+        contentContainerStyle={styles.filterRow}
+        showsHorizontalScrollIndicator={false}
+      >
+        {[
+          { id: "all" as const, label: "전체" },
+          { id: "important" as const, label: "중요" },
+          ...eventCategories,
+        ].map((filter) => {
+          const active = categoryFilter === filter.id;
+          return (
+            <Pressable
+              key={filter.id}
+              style={[
+                styles.filterButton,
+                active && styles.filterButtonActive,
+              ]}
+              onPress={() => setCategoryFilter(filter.id)}
+            >
+              <Text
+                style={[
+                  styles.filterButtonText,
+                  active && styles.filterButtonTextActive,
+                ]}
+              >
+                {filter.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       {groups.length > 0 ? (
         groups.map((group) => (
@@ -424,7 +648,13 @@ function ArchiveView({
   );
 }
 
-export function EventsScreen({ events }: { events: EventLogItem[] }) {
+export function EventsScreen({
+  events,
+  onSaveReview,
+}: {
+  events: EventLogItem[];
+  onSaveReview: (eventId: string, review: EventReview) => Promise<EventReview>;
+}) {
   const latestEvent = events[0];
   const latestDate = latestEvent ? eventDate(latestEvent) : new Date();
   const [archiveVisible, setArchiveVisible] = useState(false);
@@ -519,6 +749,15 @@ export function EventsScreen({ events }: { events: EventLogItem[] }) {
             <EventDetail
               event={selectedEvent}
               onBack={() => setSelectedEvent(null)}
+              onSaveReview={async (review) => {
+                const savedReview = await onSaveReview(
+                  selectedEvent.id,
+                  review,
+                );
+                setSelectedEvent((current) =>
+                  current ? { ...current, review: savedReview } : current,
+                );
+              }}
             />
           ) : (
             <ArchiveView
@@ -622,7 +861,26 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: 10,
   },
+  eventTags: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
   eventLevel: { fontSize: 9, fontWeight: "800" },
+  categoryTag: {
+    color: "#B6C2C1",
+    fontSize: 8,
+    fontWeight: "800",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: "#263234",
+  },
+  importantTag: {
+    color: "#F5C86C",
+    fontSize: 8,
+    fontWeight: "900",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: "#2B2618",
+  },
   eventChevron: { color: "#647376", fontSize: 20, lineHeight: 20 },
   pressed: { opacity: 0.72 },
   modalSafeArea: { flex: 1, backgroundColor: "#091011" },
@@ -742,6 +1000,30 @@ const styles = StyleSheet.create({
   modeButtonActive: { backgroundColor: "#273536" },
   modeButtonText: { color: "#718082", fontSize: 9, fontWeight: "700" },
   modeButtonTextActive: { color: "#DDE6E5" },
+  searchInput: {
+    minHeight: 44,
+    marginTop: 14,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: "#273536",
+    backgroundColor: "#11191A",
+    color: "#E5ECEB",
+    fontSize: 10,
+    paddingHorizontal: 13,
+    outlineWidth: 0,
+  },
+  filterRow: { gap: 7, paddingTop: 10, paddingBottom: 2 },
+  filterButton: {
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: "#273536",
+    backgroundColor: "#11191A",
+  },
+  filterButtonActive: { backgroundColor: "#9FE3CC", borderColor: "#9FE3CC" },
+  filterButtonText: { color: "#7D8B8D", fontSize: 9, fontWeight: "700" },
+  filterButtonTextActive: { color: "#07110E", fontWeight: "900" },
   group: { marginTop: 18 },
   groupHeader: {
     flexDirection: "row",
@@ -829,6 +1111,60 @@ const styles = StyleSheet.create({
     borderColor: "#223032",
     padding: 16,
   },
+  reviewStatus: { color: "#718082", fontSize: 9 },
+  categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  categoryButton: {
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: "#2B383A",
+    backgroundColor: "#11191A",
+  },
+  categoryButtonActive: {
+    backgroundColor: "#9FE3CC",
+    borderColor: "#9FE3CC",
+  },
+  categoryButtonText: { color: "#899799", fontSize: 9, fontWeight: "800" },
+  categoryButtonTextActive: { color: "#07110E", fontWeight: "900" },
+  reviewToggleRow: { flexDirection: "row", gap: 8, marginTop: 12 },
+  reviewToggle: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#2B383A",
+    backgroundColor: "#11191A",
+  },
+  reviewToggleActive: { borderColor: "#66582A", backgroundColor: "#2B2618" },
+  falseAlarmToggleActive: { borderColor: "#74464A", backgroundColor: "#2C1A1D" },
+  reviewToggleText: { color: "#899799", fontSize: 9, fontWeight: "800" },
+  reviewToggleTextActive: { color: "#F5C86C" },
+  falseAlarmToggleTextActive: { color: "#FF8B91" },
+  memoInput: {
+    minHeight: 82,
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#2B383A",
+    backgroundColor: "#11191A",
+    color: "#E5ECEB",
+    fontSize: 10,
+    lineHeight: 16,
+    padding: 13,
+    textAlignVertical: "top",
+    outlineWidth: 0,
+  },
+  reviewSaveButton: {
+    marginTop: 10,
+    borderRadius: 10,
+    backgroundColor: "#9FE3CC",
+    alignItems: "center",
+    paddingVertical: 11,
+  },
+  reviewSaveButtonText: { color: "#07110E", fontSize: 10, fontWeight: "900" },
+  disabledButton: { opacity: 0.55 },
   videoStatus: { color: "#718082", fontSize: 9 },
   videoPlaceholder: {
     minHeight: 235,

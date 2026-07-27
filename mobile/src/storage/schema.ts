@@ -1,5 +1,5 @@
 export const MOBILE_DATABASE_NAME = "risk-zero.db";
-export const MOBILE_SCHEMA_VERSION = 2;
+export const MOBILE_SCHEMA_VERSION = 3;
 
 export const MOBILE_SCHEMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -81,6 +81,22 @@ CREATE TABLE IF NOT EXISTS processed_videos (
   FOREIGN KEY (event_id) REFERENCES sensor_events(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS event_reviews (
+  event_id TEXT PRIMARY KEY NOT NULL,
+  category TEXT NOT NULL DEFAULT 'unclassified'
+    CHECK (category IN (
+      'unclassified', 'resident', 'visitor', 'delivery',
+      'suspicious', 'intrusion', 'other'
+    )),
+  is_false_alarm INTEGER NOT NULL DEFAULT 0
+    CHECK (is_false_alarm IN (0, 1)),
+  is_important INTEGER NOT NULL DEFAULT 0
+    CHECK (is_important IN (0, 1)),
+  memo TEXT NOT NULL DEFAULT '',
+  reviewed_at TEXT NOT NULL,
+  FOREIGN KEY (event_id) REFERENCES sensor_events(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS risk_assessments (
   id TEXT PRIMARY KEY NOT NULL,
   incident_id TEXT NOT NULL,
@@ -129,6 +145,28 @@ CREATE TABLE IF NOT EXISTS sync_states (
   FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS device_status (
+  device_id TEXT PRIMARY KEY NOT NULL,
+  battery_percent REAL,
+  storage_used_bytes INTEGER,
+  storage_capacity_bytes INTEGER,
+  last_seen_at TEXT NOT NULL,
+  FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS notification_deliveries (
+  id TEXT PRIMARY KEY NOT NULL,
+  event_id TEXT NOT NULL UNIQUE,
+  risk_level TEXT NOT NULL
+    CHECK (risk_level IN ('watch', 'warning', 'critical')),
+  status TEXT NOT NULL
+    CHECK (status IN ('reserved', 'delivered', 'acknowledged')),
+  notification_identifier TEXT,
+  created_at TEXT NOT NULL,
+  acknowledged_at TEXT,
+  FOREIGN KEY (event_id) REFERENCES sensor_events(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS incidents_device_started_idx
   ON incidents(device_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS sensor_events_device_captured_idx
@@ -137,8 +175,12 @@ CREATE INDEX IF NOT EXISTS sensor_readings_event_metric_idx
   ON sensor_readings(event_id, metric);
 CREATE INDEX IF NOT EXISTS processed_videos_captured_idx
   ON processed_videos(captured_at DESC);
+CREATE INDEX IF NOT EXISTS event_reviews_category_idx
+  ON event_reviews(category, is_important);
 CREATE INDEX IF NOT EXISTS risk_assessments_incident_evaluated_idx
   ON risk_assessments(incident_id, evaluated_at DESC);
 CREATE INDEX IF NOT EXISTS response_actions_incident_executed_idx
   ON response_actions(incident_id, executed_at DESC);
+CREATE INDEX IF NOT EXISTS notification_deliveries_created_idx
+  ON notification_deliveries(risk_level, created_at DESC);
 `;
