@@ -13,6 +13,10 @@
       "package": "com.pixelzero.riskzero",
       "versionCode": 3
     },
+    "androidNavigationBar": {
+      "backgroundColor": "#091011",
+      "barStyle": "light-content"
+    },
     "plugins": [
       "expo-sqlite",
       "expo-video",

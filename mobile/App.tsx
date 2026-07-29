@@ -5,7 +5,6 @@ import {
   Alert,
   Pressable,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
@@ -13,6 +12,10 @@ import {
   TextInput,
   View,
 } from "react-native";
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+} from "react-native-safe-area-context";
 import { getSnapshot } from "./src/api";
 import {
   loadRecentEvents,
@@ -548,7 +551,7 @@ function SettingsScreen({
   );
 }
 
-export default function App() {
+function RiskZeroApp() {
   const [activeTab, setActiveTab] = useState<TabId>("home");
   const [scenarioId, setScenarioId] = useState("normal");
   const [snapshot, setSnapshot] = useState<SystemSnapshot | null>(null);
@@ -666,7 +669,7 @@ export default function App() {
   }, [activeTab, devices, events, load, notificationPermission, notificationPreferences, refreshing, selectScenario, snapshot, source, videoStorage]);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={["top", "bottom"]} style={styles.safeArea}>
       <StatusBar style="light" />
       <View style={styles.header}>
         <View style={styles.brandRow}><View style={styles.brandMark}><Text style={styles.brandMarkText}>RZ</Text></View><View><Text style={styles.brandName}>RISK-ZERO</Text><Text style={styles.brandSub}>현관 안전 모니터</Text></View></View>
@@ -680,6 +683,14 @@ export default function App() {
         })}
       </View>
     </SafeAreaView>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <RiskZeroApp />
+    </SafeAreaProvider>
   );
 }
 

@@ -9,6 +9,8 @@
 ## 설계·정책 문서
 
 - [현재 구현 현황 — Mobile v0.2.0](implementation-status.md)
+- [개선 백로그 — 2026-07-29](RISK-ZERO_개선_백로그_2026-07-29.md)
+- [제품 개발계획 검토 — 2026-07-28](RISK-ZERO_제품_개발계획_검토_2026-07-28.md)
 - [데이터베이스 설계](database-design.md)
 - [모듈 이벤트 버퍼·모바일 동기화](module-sync.md)
 - [RISK-ZERO 운영·데이터·위험 대응 정책 v0.3](RISK-ZERO_Policy_Document_초안_v0.2.md)

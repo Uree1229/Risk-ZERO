@@ -4,13 +4,13 @@ import {
   Alert,
   Modal,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useVideoPlayer, VideoView } from "expo-video";
 import type {
   EventCategory,
@@ -734,7 +734,10 @@ export function EventsScreen({
         onRequestClose={() => setArchiveVisible(false)}
         visible={archiveVisible}
       >
-        <SafeAreaView style={styles.modalSafeArea}>
+        <SafeAreaView
+          edges={["top", "bottom"]}
+          style={styles.modalSafeArea}
+        >
           <View style={styles.modalHeader}>
             <Text style={styles.modalBrand}>RISK-ZERO</Text>
             <Pressable
