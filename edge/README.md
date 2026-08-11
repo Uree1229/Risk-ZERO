@@ -12,9 +12,20 @@ python -m edge.risk_zero_av --scenario audio-replay
 python -m unittest discover -s edge/tests
 ```
 
+## 수집 파일 확인
+
+웹 `/capture`에서 내려받은 영상과 JSON을 같은 폴더에 둔 뒤 JSON 경로를 지정합니다.
+
+```powershell
+python -m edge.risk_zero_av --check-capture C:\capture\risk-zero_example.json
+python -m edge.risk_zero_av --demo-sync C:\capture\risk-zero_example.json
+```
+
+`--check-capture`는 스키마, 파일명, 영상 존재 여부, 파일 크기와 촬영 시간을 검사합니다. `--demo-sync`는 같은 검사를 마친 뒤 `DemoAVSyncModelAdapter`의 고정값을 출력해 연결 흐름만 확인합니다. 이 값은 영상을 분석한 결과가 아니며 최종 PASS/BLOCK 판정을 만들지 않습니다.
+
 ## 실제 모델 연결
 
-`models.py`의 `CaptureAdapter`, `AVSyncModelAdapter`, `ActiveSpeakerModelAdapter`, `AudioSpoofModelAdapter`를 구현합니다. 모델 구현은 `AnalysisEvidence`만 반환하며 문 제어 여부는 결정하지 않습니다. 최종 판정과 출력은 `VerificationPolicy`와 `ActuationGate`가 담당합니다.
+`models.py`의 `CaptureAdapter`, `AVSyncModelAdapter`, `ActiveSpeakerModelAdapter`, `AudioSpoofModelAdapter`를 구현합니다. `DemoAVSyncModelAdapter`는 실제 구현 위치를 보여주는 연결 시험용이며 제품 코드에서 사용할 수 없습니다. 모델 구현은 `AnalysisEvidence`만 반환하며 문 제어 여부는 결정하지 않습니다. 최종 판정과 출력은 `VerificationPolicy`와 `ActuationGate`가 담당합니다.
 
 처리 순서는 다음과 같습니다.
 
