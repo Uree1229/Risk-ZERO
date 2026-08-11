@@ -38,6 +38,7 @@ class CapturePair:
     challenge_phrase: str
     mime_type: str
     size_bytes: int
+    duration_ms: int
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -49,6 +50,7 @@ class CapturePair:
             "challengePhrase": self.challenge_phrase,
             "captureStartedAt": self.session.capture_started_at,
             "captureEndedAt": self.session.capture_ended_at,
+            "durationMs": self.duration_ms,
             "mediaFile": self.media_path.name,
             "mimeType": self.mime_type,
             "sizeBytes": self.size_bytes,
@@ -161,4 +163,5 @@ def load_capture_pair(manifest_path: str | Path) -> CapturePair:
         challenge_phrase=challenge_phrase,
         mime_type=mime_type,
         size_bytes=size_bytes,
+        duration_ms=duration_ms,
     )

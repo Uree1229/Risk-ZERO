@@ -5,6 +5,7 @@ import sys
 
 from .actuator import ActuationGate, MockActuator
 from .capture_pair import CapturePairValidationError, load_capture_pair
+from .dataset_index import DatasetIndexError, build_dataset_index, write_dataset_index
 from .demo import run_demo
 from .models import DemoAVSyncModelAdapter
 
@@ -20,7 +21,26 @@ def main() -> None:
     )
     actions.add_argument("--check-capture", type=Path, metavar="MANIFEST_JSON")
     actions.add_argument("--demo-sync", type=Path, metavar="MANIFEST_JSON")
+    actions.add_argument("--index-dataset", type=Path, metavar="DATASET_DIRECTORY")
+    parser.add_argument("--output", type=Path, metavar="INDEX_JSON")
+    parser.add_argument("--strict", action="store_true", help="return exit code 2 when a dataset contains invalid pairs")
     args = parser.parse_args()
+
+    if (args.output or args.strict) and not args.index_dataset:
+        parser.error("--output and --strict can only be used with --index-dataset")
+
+    if args.index_dataset:
+        try:
+            index = build_dataset_index(args.index_dataset)
+            if args.output:
+                write_dataset_index(index, args.output)
+        except DatasetIndexError as error:
+            print(json.dumps({"valid": False, "error": {"code": error.code, "message": str(error)}}, ensure_ascii=False, indent=2))
+            sys.exit(2)
+        print(json.dumps(index.to_dict(), ensure_ascii=False, indent=2))
+        if args.strict and not index.is_valid:
+            sys.exit(2)
+        return
 
     if args.check_capture or args.demo_sync:
         manifest_path = args.check_capture or args.demo_sync

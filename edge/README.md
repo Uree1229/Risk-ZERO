@@ -19,9 +19,12 @@ python -m unittest discover -s edge/tests
 ```powershell
 python -m edge.risk_zero_av --check-capture C:\capture\risk-zero_example.json
 python -m edge.risk_zero_av --demo-sync C:\capture\risk-zero_example.json
+python -m edge.risk_zero_av --index-dataset C:\capture --output C:\capture\dataset-index.json
 ```
 
 `--check-capture`는 스키마, 파일명, 영상 존재 여부, 파일 크기와 촬영 시간을 검사합니다. `--demo-sync`는 같은 검사를 마친 뒤 `DemoAVSyncModelAdapter`의 고정값을 출력해 연결 흐름만 확인합니다. 이 값은 영상을 분석한 결과가 아니며 최종 PASS/BLOCK 판정을 만들지 않습니다.
+
+`--index-dataset`은 하위 폴더의 `risk-zero_*.json`을 검사하고 유효한 촬영 쌍, 오류, 참여자 수와 시나리오별 개수를 정리합니다. 인덱스에는 원본 영상 내용과 컴퓨터의 절대경로를 넣지 않습니다. 자동 검사에서 오류가 하나라도 있을 때 실패 처리하려면 `--strict`를 추가합니다.
 
 ## 실제 모델 연결
 

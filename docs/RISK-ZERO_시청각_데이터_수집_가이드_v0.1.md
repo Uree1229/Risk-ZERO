@@ -31,6 +31,14 @@ RISK-ZERO-dataset/
 
 원본 영상은 Git 저장소에 올리지 않는다. 별도의 접근 제한 폴더에 보관한다.
 
+전체 폴더를 검사하고 목록을 만들 때는 다음 명령을 사용한다.
+
+```powershell
+python -m edge.risk_zero_av --index-dataset C:\RISK-ZERO-dataset --output C:\RISK-ZERO-dataset\dataset-index.json
+```
+
+생성된 인덱스에는 상대경로와 실험 메타데이터만 들어가며 영상 내용은 복사되지 않는다. `invalidPairs`가 0인지 확인한 뒤 분석 단계로 넘긴다.
+
 ## 3. 현재 촬영 유형
 
 | ID | 화면 표시 | 촬영 방법 |
@@ -91,4 +99,3 @@ RISK-ZERO-dataset/
 ## 7. 이번 구현의 경계
 
 현재 화면은 로컬 동시 녹화와 메타데이터 생성을 지원한다. 카메라·마이크 동기 정확도 측정, 모델 학습, 자동 라벨 검증, 서버 업로드, DB 적재는 아직 구현하지 않았다.
-
