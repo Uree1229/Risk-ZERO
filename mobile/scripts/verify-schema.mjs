@@ -22,6 +22,6 @@ const tables = database
   .map(({ name }) => name);
 
 console.log(`${tables.length} tables: ${tables.join(", ")}`);
-if (tables.length !== 13) {
-  throw new Error(`Expected 13 mobile tables, found ${tables.length}.`);
+if (tables.length !== 18) {
+  throw new Error(`Expected 18 mobile tables, found ${tables.length}.`);
 }

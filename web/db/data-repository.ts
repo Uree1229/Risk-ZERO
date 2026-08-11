@@ -1,5 +1,10 @@
 import type { EventLogItem, ResponseAction, SensorReading, SystemSnapshot } from "@/lib/domain";
-import type { IncomingSensorEvent, IncomingSensorValue, ReadingQuality } from "@/lib/api-contract";
+import type {
+  IncomingSensorEvent,
+  IncomingSensorValue,
+  IncomingVerificationAttempt,
+  ReadingQuality,
+} from "@/lib/api-contract";
 import { DEMO_HOUSEHOLD_ID } from "@/lib/api-contract";
 
 interface DeviceRow {
@@ -125,6 +130,13 @@ function asReadingQuality(value: string): SensorReading["quality"] {
   if (value === "good") return "good";
   if (value === "uncertain") return "degraded";
   return "unknown";
+}
+
+function decisionFromLegacyLevel(level: string | null | undefined): EventLogItem["decision"] {
+  if (level === "normal") return "pass";
+  if (level === "watch") return "inconclusive";
+  if (level === "warning" || level === "critical") return "block";
+  return "pending";
 }
 
 function valueFromReading(row: ReadingRow): boolean | number | string {
@@ -297,6 +309,226 @@ export async function ingestSensorEvent(db: D1Database, input: IncomingSensorEve
   }
 
   return { eventId, incidentId, duplicate: false };
+}
+
+export async function ingestVerificationAttempt(db: D1Database, input: IncomingVerificationAttempt) {
+  const device = await findDevice(db, input.householdId, input.controlRequest.deviceId);
+  if (!device) throw new RepositoryError("등록된 장치를 찾을 수 없습니다.", 404, "DEVICE_NOT_FOUND");
+
+  const event = await db
+    .prepare("SELECT id FROM sensor_events WHERE id = ? AND household_id = ? AND device_id = ? LIMIT 1")
+    .bind(input.eventId, input.householdId, device.id)
+    .first<{ id: string }>();
+  if (!event) throw new RepositoryError("검증에 연결할 이벤트를 찾을 수 없습니다.", 404, "EVENT_NOT_FOUND");
+
+  const duplicate = await db
+    .prepare("SELECT id FROM verification_attempts WHERE id = ? OR event_id = ? LIMIT 1")
+    .bind(input.verification.id, input.eventId)
+    .first<{ id: string }>();
+  if (duplicate) return { verificationId: duplicate.id, eventId: input.eventId, duplicate: true };
+
+  if (input.gate.allowed && input.verification.decision !== "pass") {
+    throw new RepositoryError("PASS가 아닌 검증 결과에는 제어를 허용할 수 없습니다.", 409, "UNSAFE_GATE_RESULT");
+  }
+  if (!input.gate.allowed && input.gate.output !== "none") {
+    throw new RepositoryError("차단된 요청의 출력은 none이어야 합니다.", 409, "UNSAFE_GATE_RESULT");
+  }
+  const expectedOutput = input.controlRequest.intent === "status"
+    ? "none"
+    : `${input.controlRequest.intent}_pulse`;
+  if (input.gate.allowed && input.gate.output !== expectedOutput) {
+    throw new RepositoryError("요청 의도와 제어 출력이 일치하지 않습니다.", 409, "UNSAFE_GATE_RESULT");
+  }
+  if (Date.parse(input.controlRequest.expiresAt) < Date.parse(input.controlRequest.requestedAt)) {
+    throw new RepositoryError("제어 요청 만료시각이 요청시각보다 빠릅니다.", 409, "UNSAFE_GATE_RESULT");
+  }
+  if (input.gate.allowed && Date.parse(input.gate.validUntil) <= Date.parse(input.verification.evaluatedAt)) {
+    throw new RepositoryError("이미 만료된 제어 게이트는 허용할 수 없습니다.", 409, "UNSAFE_GATE_RESULT");
+  }
+
+  const now = new Date().toISOString();
+  const statements: D1PreparedStatement[] = [];
+  const request = input.controlRequest;
+  const verification = input.verification;
+  const evidence = verification.evidence;
+
+  if (request.challengeId) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO challenge_sessions
+             (id, household_id, phrase, nonce, issued_at, expires_at, used_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          request.challengeId,
+          input.householdId,
+          request.challengePhrase ?? request.transcript,
+          request.nonce,
+          request.requestedAt,
+          request.expiresAt,
+          verification.evaluatedAt,
+          now
+        )
+    );
+  }
+
+  statements.push(
+    db
+      .prepare(
+        `INSERT INTO control_requests
+           (id, household_id, device_id, intent, transcript, asr_confidence,
+            requested_at, expires_at, challenge_id, nonce, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        request.id,
+        input.householdId,
+        device.id,
+        request.intent,
+        request.transcript,
+        request.asrConfidence,
+        request.requestedAt,
+        request.expiresAt,
+        request.challengeId,
+        request.nonce,
+        now
+      ),
+    db
+      .prepare(
+        `INSERT INTO verification_attempts
+           (id, household_id, event_id, request_id, schema_version, decision,
+            confidence, reason_codes_json, summary, policy_version, evaluated_at,
+            processing_time_ms, is_demo, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        verification.id,
+        input.householdId,
+        input.eventId,
+        request.id,
+        verification.schemaVersion,
+        verification.decision,
+        verification.confidence,
+        JSON.stringify(verification.reasonCodes),
+        verification.summary,
+        verification.policyVersion,
+        verification.evaluatedAt,
+        verification.processingTimeMs,
+        verification.isDemo ? 1 : 0,
+        now
+      ),
+    db
+      .prepare(
+        `INSERT INTO verification_evidence
+           (attempt_id, person_present, face_count, mouth_visible, audio_detected,
+            av_offset_ms, sync_confidence, active_speaker_score, audio_spoof_score,
+            visual_spoof_score, challenge_matched, audio_quality, video_quality,
+            clock_synchronized, model_versions_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        verification.id,
+        evidence.personPresent ? 1 : 0,
+        evidence.faceCount,
+        evidence.mouthVisible ? 1 : 0,
+        evidence.audioDetected ? 1 : 0,
+        evidence.avOffsetMs,
+        evidence.syncConfidence,
+        evidence.activeSpeakerScore,
+        evidence.audioSpoofScore,
+        evidence.visualSpoofScore,
+        evidence.challengeMatched === null ? null : evidence.challengeMatched ? 1 : 0,
+        evidence.audioQuality,
+        evidence.videoQuality,
+        evidence.clockSynchronized ? 1 : 0,
+        JSON.stringify(evidence.modelVersions),
+        now
+      ),
+    db
+      .prepare(
+        `INSERT INTO actuation_logs
+           (id, household_id, attempt_id, request_id, allowed, output, reason,
+            valid_until, executed_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`
+      )
+      .bind(
+        `actuation:${verification.id}`,
+        input.householdId,
+        verification.id,
+        request.id,
+        input.gate.allowed ? 1 : 0,
+        input.gate.output,
+        input.gate.reason,
+        input.gate.validUntil,
+        now
+      )
+  );
+
+  try {
+    await db.batch(statements);
+  } catch (error) {
+    const racedDuplicate = await db
+      .prepare("SELECT id FROM verification_attempts WHERE id = ? OR event_id = ? LIMIT 1")
+      .bind(verification.id, input.eventId)
+      .first<{ id: string }>();
+    if (racedDuplicate) return { verificationId: racedDuplicate.id, eventId: input.eventId, duplicate: true };
+    throw error;
+  }
+
+  return { verificationId: verification.id, eventId: input.eventId, duplicate: false };
+}
+
+export async function listVerificationAttempts(db: D1Database, householdId: string, limit = 50) {
+  const rows = await results<{
+    id: string;
+    event_id: string;
+    request_id: string;
+    intent: string;
+    transcript: string;
+    decision: string;
+    confidence: number | null;
+    reason_codes_json: string;
+    summary: string;
+    policy_version: string;
+    evaluated_at: string;
+    processing_time_ms: number;
+    is_demo: number;
+    allowed: number | null;
+    output: string | null;
+  }>(
+    db
+      .prepare(
+        `SELECT va.id, va.event_id, va.request_id, cr.intent, cr.transcript,
+                va.decision, va.confidence, va.reason_codes_json, va.summary,
+                va.policy_version, va.evaluated_at, va.processing_time_ms, va.is_demo,
+                al.allowed, al.output
+           FROM verification_attempts va
+           JOIN control_requests cr ON cr.id = va.request_id
+           LEFT JOIN actuation_logs al ON al.attempt_id = va.id
+          WHERE va.household_id = ?
+          ORDER BY va.evaluated_at DESC
+          LIMIT ?`
+      )
+      .bind(householdId, limit)
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    eventId: row.event_id,
+    requestId: row.request_id,
+    intent: row.intent,
+    transcript: row.transcript,
+    decision: row.decision,
+    confidence: row.confidence,
+    reasonCodes: parseJson<string[]>(row.reason_codes_json, []),
+    summary: row.summary,
+    policyVersion: row.policy_version,
+    evaluatedAt: asIso(row.evaluated_at),
+    processingTimeMs: row.processing_time_ms,
+    isDemo: row.is_demo === 1,
+    gate: row.allowed === null ? null : { allowed: row.allowed === 1, output: row.output },
+  }));
 }
 
 export async function listSensorEvents(db: D1Database, householdId: string, limit = 50) {
@@ -556,28 +788,44 @@ export async function saveIncidentFeedback(
 }
 
 const scenarioLabels: Record<string, string> = {
-  normal: "정상 방문",
-  watch: "주의 관찰",
-  warning: "위험 징후",
-  critical: "고위험",
+  pass: "현장 발화 통과",
+  "audio-replay": "음성 재생 차단",
+  "sync-mismatch": "싱크 불일치 차단",
+  inconclusive: "판단 불가",
+};
+
+const scenarioAliases: Record<string, string> = {
+  normal: "pass",
+  watch: "inconclusive",
+  warning: "sync-mismatch",
+  critical: "audio-replay",
+};
+
+const legacyScenarioKeys: Record<string, string> = {
+  pass: "normal",
+  inconclusive: "watch",
+  "sync-mismatch": "warning",
+  "audio-replay": "critical",
 };
 
 const responseMessages: Record<string, string> = {
-  normal: "별도 확인이 필요하지 않습니다.",
-  watch: "현관 상황을 확인해 주세요.",
-  warning: "보호자 확인이 필요합니다.",
-  critical: "거주자에게 연락하고 상황을 확인하세요.",
+  pass: "제어 요청을 3초 동안 허용합니다.",
+  "audio-replay": "문 제어를 차단하고 사건을 기록했습니다.",
+  "sync-mismatch": "문 제어를 차단하고 재시도를 요청합니다.",
+  inconclusive: "문 제어를 유지하고 앱 확인을 요청합니다.",
 };
 
 export async function buildDatabaseSnapshot(db: D1Database, requestedScenario: string): Promise<SystemSnapshot> {
-  const scenarioId = scenarioLabels[requestedScenario] ? requestedScenario : "normal";
+  const normalizedScenario = scenarioAliases[requestedScenario] ?? requestedScenario;
+  const scenarioId = scenarioLabels[normalizedScenario] ? normalizedScenario : "pass";
+  const databaseScenarioKey = legacyScenarioKeys[scenarioId];
   const incident = await db
     .prepare(
       `SELECT id, household_id, scenario_key, title, status, max_risk_level, max_risk_score,
               classification, is_demo, started_at, ended_at
        FROM incidents WHERE household_id = ? AND scenario_key = ? LIMIT 1`
     )
-    .bind(DEMO_HOUSEHOLD_ID, scenarioId)
+    .bind(DEMO_HOUSEHOLD_ID, databaseScenarioKey)
     .first<IncidentRow>();
   if (!incident) throw new RepositoryError("DB 더미 시나리오가 없습니다.", 404, "DEMO_SCENARIO_NOT_FOUND");
 
@@ -630,13 +878,35 @@ export async function buildDatabaseSnapshot(db: D1Database, requestedScenario: s
     detail: row.summary ?? "이벤트 기록",
     level: (row.level ?? row.max_risk_level) as EventLogItem["level"],
     score: row.score ?? row.max_risk_score,
+    decision: decisionFromLegacyLevel(row.level ?? row.max_risk_level),
+    confidence: (row.score ?? row.max_risk_score) === null ? null : Math.max(0, Math.min(1, (row.score ?? row.max_risk_score ?? 0) / 100)),
   }));
+
+  const decision = decisionFromLegacyLevel(assessment.level);
+  const confidence = assessment.score === null ? null : Math.max(0, Math.min(1, assessment.score / 100));
+  const generatedAt = new Date().toISOString();
+  const requestId = `request-${event.id}`;
+  const expiresAt = new Date(Date.now() + 15_000).toISOString();
+  const validUntil = new Date(Date.now() + 3_000).toISOString();
+  const reasonCodes = parseJson<string[]>(assessment.reasons_json, []);
 
   return {
     mode: "demo",
     scenarioId,
     scenarioLabel: scenarioLabels[scenarioId],
-    generatedAt: new Date().toISOString(),
+    generatedAt,
+    controlRequest: {
+      id: requestId,
+      deviceId: event.external_device_id ?? "RZ-EDGE-DEMO-01",
+      intent: "unlock",
+      transcript: "초록 우산 문 열어",
+      asrConfidence: 0.94,
+      requestedAt: generatedAt,
+      expiresAt,
+      challengeId: `challenge-${event.id}`,
+      nonce: `demo-nonce-${event.id}`,
+      challengePhrase: "초록 우산 문 열어",
+    },
     sensorEvent: {
       id: event.id,
       sequence: event.sequence ?? 0,
@@ -666,16 +936,50 @@ export async function buildDatabaseSnapshot(db: D1Database, requestedScenario: s
       reasons: parseJson<string[]>(assessment.reasons_json, []),
       evaluatedAt: asIso(assessment.evaluated_at),
     },
+    verification: {
+      id: `verification-${event.id}`,
+      schemaVersion: "av-verification/1",
+      decision,
+      confidence,
+      reasonCodes,
+      summary: assessment.summary,
+      policyVersion: "av-policy/0.1",
+      evaluatedAt: asIso(assessment.evaluated_at),
+      processingTimeMs: 0,
+      isDemo: true,
+      evidence: {
+        personPresent: true,
+        faceCount: 1,
+        mouthVisible: true,
+        audioDetected: true,
+        avOffsetMs: null,
+        syncConfidence: confidence,
+        activeSpeakerScore: null,
+        audioSpoofScore: null,
+        visualSpoofScore: null,
+        challengeMatched: null,
+        audioQuality: "degraded",
+        videoQuality: "degraded",
+        clockSynchronized: false,
+        modelVersions: { compatibility: "legacy-d1" },
+      },
+    },
+    gate: {
+      allowed: decision === "pass",
+      output: decision === "pass" ? "unlock_pulse" : "none",
+      reason: decision === "pass" ? "verified" : `verification_${decision}`,
+      validUntil,
+    },
     response: {
       status: "preview",
       actions,
       message: responseMessages[scenarioId],
     },
     pipeline: [
-      { id: "sensor", label: "센서 계층", detail: "D1 더미 시드 · 교체 가능한 Gateway", state: "demo" },
-      { id: "normalize", label: "데이터 정규화", detail: "sensor_events + sensor_readings", state: "ready" },
-      { id: "risk", label: "위험도 엔진", detail: "로직 비움 · DB 고정 결과", state: "pending" },
-      { id: "response", label: "대응 미리보기", detail: "DB 대응 이력 · 실제 제어 없음", state: "demo" },
+      { id: "capture", label: "카메라·마이크", detail: "이전 D1 시드 호환 데이터", state: "pending" },
+      { id: "normalize", label: "증거 정규화", detail: "av-verification/1 변환", state: "ready" },
+      { id: "verify", label: "시청각 검증", detail: "이전 평가 데이터 호환 표시", state: "demo" },
+      { id: "gate", label: "제어 게이트", detail: "실제 문 제어 없음", state: "demo" },
     ],
     recentEvents,
   };

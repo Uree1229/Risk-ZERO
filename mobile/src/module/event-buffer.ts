@@ -18,6 +18,18 @@ function copyEvent(event: ModuleEvent): ModuleEvent {
     ...event,
     metrics: event.metrics.map((metric) => ({ ...metric })),
     video: event.video ? { ...event.video } : undefined,
+    controlRequest: event.controlRequest ? { ...event.controlRequest } : undefined,
+    verification: event.verification
+      ? {
+          ...event.verification,
+          reasonCodes: [...event.verification.reasonCodes],
+          evidence: {
+            ...event.verification.evidence,
+            modelVersions: { ...event.verification.evidence.modelVersions },
+          },
+        }
+      : undefined,
+    actuation: event.actuation ? { ...event.actuation } : undefined,
   };
 }
 

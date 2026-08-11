@@ -1,0 +1,8 @@
+[project]
+name = "risk-zero-edge"
+version = "0.1.0"
+requires-python = ">=3.11"
+description = "Audio-visual speech verification gate for the RISK-ZERO capstone"
+
+[tool.unittest]
+start-directory = "tests"

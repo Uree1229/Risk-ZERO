@@ -50,6 +50,64 @@ test("모듈 버퍼는 후처리 수치와 영상 파일 정보만 전달한다"
   assert.equal("readings" in batch.events[0], false);
 });
 
+test("모듈 버퍼는 제어 요청과 시청각 검증 결과를 함께 전달한다", async () => {
+  const moduleBuffer = new InMemoryModuleEventBuffer(device, 10);
+  const capturedAt = "2026-08-11T01:30:21.000Z";
+  moduleBuffer.append({
+    ...draft(1),
+    controlRequest: {
+      id: "request-1",
+      deviceId: device.id,
+      intent: "unlock",
+      transcript: "초록 우산 문 열어",
+      asrConfidence: 0.94,
+      requestedAt: capturedAt,
+      expiresAt: "2026-08-11T01:30:36.000Z",
+      challengeId: "challenge-1",
+      nonce: "nonce-1",
+    },
+    verification: {
+      id: "verification-1",
+      schemaVersion: "av-verification/1",
+      decision: "pass",
+      confidence: 0.91,
+      reasonCodes: ["verified_live_speech"],
+      summary: "현재 발화와 입술 움직임이 일치합니다.",
+      policyVersion: "av-policy/0.1",
+      evaluatedAt: capturedAt,
+      processingTimeMs: 428,
+      isDemo: true,
+      evidence: {
+        personPresent: true,
+        faceCount: 1,
+        mouthVisible: true,
+        audioDetected: true,
+        avOffsetMs: 42,
+        syncConfidence: 0.93,
+        activeSpeakerScore: 0.91,
+        audioSpoofScore: 0.08,
+        visualSpoofScore: 0.05,
+        challengeMatched: true,
+        audioQuality: "good",
+        videoQuality: "good",
+        clockSynchronized: true,
+        modelVersions: { avSync: "DemoSyncAdapter/0.1" },
+      },
+    },
+    actuation: {
+      allowed: true,
+      output: "unlock_pulse",
+      reason: "verified",
+      validUntil: "2026-08-11T01:30:24.000Z",
+    },
+  });
+
+  const batch = await moduleBuffer.pullEvents(0, 10);
+  assert.equal(batch.events[0].verification.decision, "pass");
+  assert.equal(batch.events[0].verification.evidence.avOffsetMs, 42);
+  assert.equal(batch.events[0].actuation.output, "unlock_pulse");
+});
+
 test("유효하지 않은 수치형 지표는 모듈 버퍼에서 거부한다", () => {
   const moduleBuffer = new InMemoryModuleEventBuffer(device, 10);
   const invalid = draft(1);

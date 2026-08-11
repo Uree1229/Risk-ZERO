@@ -16,7 +16,7 @@ import type {
   EventCategory,
   EventLogItem,
   EventReview,
-  RiskLevel,
+  VerificationDecision,
 } from "../types";
 import {
   buildMonthCells,
@@ -34,24 +34,23 @@ import {
   type EventCategoryFilter,
 } from "./event-filter";
 
-const levelMeta: Record<
-  RiskLevel,
+const decisionMeta: Record<
+  VerificationDecision,
   { label: string; color: string; soft: string }
 > = {
-  pending: { label: "판정 대기", color: "#93A2A4", soft: "#182224" },
-  normal: { label: "정상", color: "#72D8B2", soft: "#112A23" },
-  watch: { label: "주의", color: "#F5C86C", soft: "#2B2618" },
-  warning: { label: "경고", color: "#FF9F68", soft: "#2F2019" },
-  critical: { label: "고위험", color: "#FF6C73", soft: "#301A1D" },
+  pending: { label: "검증 대기", color: "#93A2A4", soft: "#182224" },
+  pass: { label: "통과", color: "#72D8B2", soft: "#112A23" },
+  inconclusive: { label: "판단 불가", color: "#F5C86C", soft: "#2B2618" },
+  block: { label: "차단", color: "#FF6C73", soft: "#301A1D" },
 };
 
 const eventCategories: Array<{ id: EventCategory; label: string }> = [
   { id: "unclassified", label: "미분류" },
-  { id: "resident", label: "거주자" },
-  { id: "visitor", label: "방문자" },
-  { id: "delivery", label: "배달" },
-  { id: "suspicious", label: "수상 행동" },
-  { id: "intrusion", label: "침입 시도" },
+  { id: "resident", label: "현장 발화" },
+  { id: "visitor", label: "음성 재생" },
+  { id: "delivery", label: "영상 재생" },
+  { id: "suspicious", label: "합성 의심" },
+  { id: "intrusion", label: "품질 문제" },
   { id: "other", label: "기타" },
 ];
 
@@ -100,7 +99,7 @@ function EventCard({
   onPress: () => void;
   compact?: boolean;
 }) {
-  const meta = levelMeta[event.level];
+  const meta = decisionMeta[event.decision];
   return (
     <Pressable
       accessibilityRole="button"
@@ -126,7 +125,7 @@ function EventCard({
         <View style={styles.eventFooter}>
           <View style={styles.eventTags}>
             <Text style={[styles.eventLevel, { color: meta.color }]}>
-              {meta.label} · {event.score ?? "-"}점
+              {meta.label} · {event.confidence === null ? "-" : `${Math.round(event.confidence * 100)}%`}
             </Text>
             {event.review?.category &&
             event.review.category !== "unclassified" ? (
@@ -247,7 +246,7 @@ function EventDetail({
   onBack: () => void;
   onSaveReview: (review: EventReview) => Promise<void>;
 }) {
-  const meta = levelMeta[event.level];
+  const meta = decisionMeta[event.decision];
   const [review, setReview] = useState<EventReview>(() => reviewFor(event));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -287,14 +286,14 @@ function EventDetail({
 
       <View style={[styles.riskSummary, { borderColor: `${meta.color}55` }]}>
         <View>
-          <Text style={styles.summaryCaption}>위험 단계</Text>
+          <Text style={styles.summaryCaption}>검증 판정</Text>
           <Text style={[styles.summaryLevel, { color: meta.color }]}>
             {meta.label}
           </Text>
         </View>
         <Text style={[styles.summaryScore, { color: meta.color }]}>
-          {event.score ?? "-"}
-          <Text style={styles.summaryScoreUnit}> / 100</Text>
+          {event.confidence === null ? "-" : Math.round(event.confidence * 100)}
+          <Text style={styles.summaryScoreUnit}>%</Text>
         </Text>
       </View>
 
@@ -553,7 +552,7 @@ function ArchiveView({
           {(
             [
               ["time", "시간대별"],
-              ["risk", "위험 단계별"],
+              ["decision", "판정별"],
             ] as const
           ).map(([value, label]) => (
             <Pressable

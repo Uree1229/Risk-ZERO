@@ -1,6 +1,6 @@
-import type { EventLogItem, RiskLevel } from "../types";
+import type { EventLogItem, VerificationDecision } from "../types";
 
-export type EventGroupMode = "time" | "risk";
+export type EventGroupMode = "time" | "decision";
 
 export interface CalendarCell {
   date: Date;
@@ -22,12 +22,11 @@ const timeGroups = [
   { key: "evening", label: "저녁", from: 18, to: 24 },
 ] as const;
 
-const riskGroups: Array<{ key: RiskLevel; label: string }> = [
-  { key: "critical", label: "고위험" },
-  { key: "warning", label: "경고" },
-  { key: "watch", label: "주의" },
-  { key: "normal", label: "정상" },
-  { key: "pending", label: "판정 대기" },
+const decisionGroups: Array<{ key: VerificationDecision; label: string }> = [
+  { key: "block", label: "차단" },
+  { key: "inconclusive", label: "판단 불가" },
+  { key: "pass", label: "통과" },
+  { key: "pending", label: "검증 대기" },
 ];
 
 function pad(value: number) {
@@ -125,12 +124,12 @@ export function groupEvents(
   mode: EventGroupMode,
   fallback = new Date(),
 ): EventGroup[] {
-  if (mode === "risk") {
-    return riskGroups
+  if (mode === "decision") {
+    return decisionGroups
       .map(({ key, label }) => ({
         key,
         label,
-        events: events.filter((event) => event.level === key),
+        events: events.filter((event) => event.decision === key),
       }))
       .filter((group) => group.events.length > 0);
   }

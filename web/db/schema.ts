@@ -22,12 +22,15 @@ const deviceTypes = [
   "door_contact",
   "door_lock",
   "camera",
+  "microphone",
   "panic_button",
   "other",
 ] as const;
 const deviceStatuses = ["online", "offline", "degraded", "retired"] as const;
 const incidentStatuses = ["open", "monitoring", "closed"] as const;
 const riskLevels = ["pending", "normal", "watch", "warning", "critical"] as const;
+const verificationDecisions = ["pending", "pass", "block", "inconclusive"] as const;
+const captureQualities = ["good", "degraded", "bad", "missing"] as const;
 
 export const users = sqliteTable(
   "users",
@@ -219,6 +222,146 @@ export const sensorReadings = sqliteTable(
         CASE WHEN ${table.valueJson} IS NOT NULL THEN 1 ELSE 0 END
       ) = 1`
     ),
+  ]
+);
+
+export const challengeSessions = sqliteTable(
+  "challenge_sessions",
+  {
+    id: text("id").primaryKey(),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    phrase: text("phrase").notNull(),
+    nonce: text("nonce").notNull(),
+    issuedAt: text("issued_at").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    usedAt: text("used_at"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("challenge_sessions_nonce_uq").on(table.nonce),
+    index("challenge_sessions_household_issued_idx").on(table.householdId, table.issuedAt),
+  ]
+);
+
+export const controlRequests = sqliteTable(
+  "control_requests",
+  {
+    id: text("id").primaryKey(),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    deviceId: text("device_id")
+      .notNull()
+      .references(() => devices.id, { onDelete: "restrict" }),
+    intent: text("intent", { enum: ["unlock", "lock", "status"] }).notNull(),
+    transcript: text("transcript").notNull(),
+    asrConfidence: real("asr_confidence"),
+    requestedAt: text("requested_at").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    challengeId: text("challenge_id").references(() => challengeSessions.id, { onDelete: "set null" }),
+    nonce: text("nonce").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("control_requests_nonce_uq").on(table.nonce),
+    index("control_requests_household_requested_idx").on(table.householdId, table.requestedAt),
+    check(
+      "control_requests_asr_confidence_range",
+      sql`${table.asrConfidence} IS NULL OR (${table.asrConfidence} >= 0 AND ${table.asrConfidence} <= 1)`
+    ),
+  ]
+);
+
+export const verificationAttempts = sqliteTable(
+  "verification_attempts",
+  {
+    id: text("id").primaryKey(),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => sensorEvents.id, { onDelete: "cascade" }),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => controlRequests.id, { onDelete: "cascade" }),
+    schemaVersion: text("schema_version").notNull(),
+    decision: text("decision", { enum: verificationDecisions }).notNull(),
+    confidence: real("confidence"),
+    reasonCodesJson: text("reason_codes_json", { mode: "json" }).$type<string[]>().notNull(),
+    summary: text("summary").notNull(),
+    policyVersion: text("policy_version").notNull(),
+    evaluatedAt: text("evaluated_at").notNull(),
+    processingTimeMs: integer("processing_time_ms").notNull(),
+    isDemo: integer("is_demo", { mode: "boolean" }).notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("verification_attempts_event_uq").on(table.eventId),
+    index("verification_attempts_household_evaluated_idx").on(table.householdId, table.evaluatedAt),
+    index("verification_attempts_decision_evaluated_idx").on(table.decision, table.evaluatedAt),
+    check(
+      "verification_attempts_confidence_range",
+      sql`${table.confidence} IS NULL OR (${table.confidence} >= 0 AND ${table.confidence} <= 1)`
+    ),
+    check("verification_attempts_processing_time_nonnegative", sql`${table.processingTimeMs} >= 0`),
+  ]
+);
+
+export const verificationEvidence = sqliteTable(
+  "verification_evidence",
+  {
+    attemptId: text("attempt_id")
+      .primaryKey()
+      .references(() => verificationAttempts.id, { onDelete: "cascade" }),
+    personPresent: integer("person_present", { mode: "boolean" }).notNull(),
+    faceCount: integer("face_count").notNull(),
+    mouthVisible: integer("mouth_visible", { mode: "boolean" }).notNull(),
+    audioDetected: integer("audio_detected", { mode: "boolean" }).notNull(),
+    avOffsetMs: real("av_offset_ms"),
+    syncConfidence: real("sync_confidence"),
+    activeSpeakerScore: real("active_speaker_score"),
+    audioSpoofScore: real("audio_spoof_score"),
+    visualSpoofScore: real("visual_spoof_score"),
+    challengeMatched: integer("challenge_matched", { mode: "boolean" }),
+    audioQuality: text("audio_quality", { enum: captureQualities }).notNull(),
+    videoQuality: text("video_quality", { enum: captureQualities }).notNull(),
+    clockSynchronized: integer("clock_synchronized", { mode: "boolean" }).notNull(),
+    modelVersionsJson: text("model_versions_json", { mode: "json" })
+      .$type<Record<string, string>>()
+      .notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    check("verification_evidence_face_count_nonnegative", sql`${table.faceCount} >= 0`),
+  ]
+);
+
+export const actuationLogs = sqliteTable(
+  "actuation_logs",
+  {
+    id: text("id").primaryKey(),
+    householdId: text("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    attemptId: text("attempt_id")
+      .notNull()
+      .references(() => verificationAttempts.id, { onDelete: "cascade" }),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => controlRequests.id, { onDelete: "cascade" }),
+    allowed: integer("allowed", { mode: "boolean" }).notNull(),
+    output: text("output", { enum: ["unlock_pulse", "lock_pulse", "none"] }).notNull(),
+    reason: text("reason").notNull(),
+    validUntil: text("valid_until").notNull(),
+    executedAt: text("executed_at"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("actuation_logs_household_created_idx").on(table.householdId, table.createdAt),
+    index("actuation_logs_request_idx").on(table.requestId, table.validUntil),
   ]
 );
 

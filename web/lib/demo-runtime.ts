@@ -1,189 +1,191 @@
 import type {
+  CaptureQuality,
   EventLogItem,
-  PipelineStage,
   ResponseAction,
-  ResponsePlan,
-  RiskAssessment,
-  RiskEngine,
   RiskLevel,
-  SensorEvent,
-  SensorGateway,
   SensorReading,
   SystemSnapshot,
+  VerificationDecision,
+  VerificationEvidence,
 } from "./domain";
 
 interface DemoScenario {
   id: string;
   label: string;
   sequence: number;
-  readings: Array<Omit<SensorReading, "id" | "capturedAt" | "quality">>;
-  assessment: {
-    score: number;
-    level: Exclude<RiskLevel, "pending">;
-    summary: string;
-    reasons: string[];
-  };
+  decision: Exclude<VerificationDecision, "pending">;
+  confidence: number;
+  summary: string;
+  reasons: string[];
+  reasonCodes: string[];
+  evidence: VerificationEvidence;
   actions: ResponseAction[];
   message: string;
 }
+const baseEvidence: VerificationEvidence = {
+  personPresent: true,
+  faceCount: 1,
+  mouthVisible: true,
+  audioDetected: true,
+  avOffsetMs: 42,
+  syncConfidence: 0.93,
+  activeSpeakerScore: 0.91,
+  audioSpoofScore: 0.08,
+  visualSpoofScore: 0.05,
+  challengeMatched: true,
+  audioQuality: "good",
+  videoQuality: "good",
+  clockSynchronized: true,
+  modelVersions: { avSync: "DemoSyncAdapter/0.1", activeSpeaker: "DemoTalkAdapter/0.1", audioSpoof: "DemoSpoofAdapter/0.1" },
+};
 
 const scenarios: DemoScenario[] = [
   {
-    id: "normal",
-    label: "정상 방문",
-    sequence: 101,
-    readings: [
-      { metric: "presence", label: "사람 감지", value: true },
-      { metric: "dwell_seconds", label: "체류 시간", value: 7, unit: "초" },
-      { metric: "vibration_count", label: "진동 횟수", value: 0, unit: "회" },
-      { metric: "door_state", label: "문 상태", value: "닫힘" },
-    ],
-    assessment: {
-      score: 14,
-      level: "normal",
-      summary: "짧은 방문이 감지되었습니다.",
-      reasons: ["짧은 체류", "진동 없음"],
-    },
+    id: "pass",
+    label: "현장 발화 통과",
+    sequence: 201,
+    decision: "pass",
+    confidence: 0.91,
+    summary: "현재 발화와 입술 움직임이 일치합니다.",
+    reasons: ["싱크 42ms", "활성 화자 확인", "challenge 일치"],
+    reasonCodes: ["verified_live_speech"],
+    evidence: baseEvidence,
     actions: ["standby"],
-    message: "별도 확인이 필요하지 않습니다.",
+    message: "제어 요청을 3초 동안 허용합니다.",
   },
   {
-    id: "watch",
-    label: "주의 관찰",
-    sequence: 102,
-    readings: [
-      { metric: "presence", label: "사람 감지", value: true },
-      { metric: "dwell_seconds", label: "체류 시간", value: 28, unit: "초" },
-      { metric: "vibration_count", label: "진동 횟수", value: 1, unit: "회" },
-      { metric: "door_state", label: "문 상태", value: "닫힘" },
-    ],
-    assessment: {
-      score: 46,
-      level: "watch",
-      summary: "현관 앞 체류가 길어지고 있습니다.",
-      reasons: ["체류 시간 증가", "일회성 진동"],
-    },
+    id: "audio-replay",
+    label: "음성 재생 차단",
+    sequence: 202,
+    decision: "block",
+    confidence: 0.97,
+    summary: "화면에서 현재 발화자를 확인하지 못했습니다.",
+    reasons: ["화면 속 발화자 없음", "재생 음성 의심"],
+    reasonCodes: ["no_visible_person", "audio_spoof_suspected"],
+    evidence: { ...baseEvidence, personPresent: false, faceCount: 0, mouthVisible: false, audioSpoofScore: 0.91 },
+    actions: ["local_alert", "camera_preview"],
+    message: "문 제어를 차단하고 사건을 기록했습니다.",
+  },
+  {
+    id: "sync-mismatch",
+    label: "싱크 불일치 차단",
+    sequence: 203,
+    decision: "block",
+    confidence: 0.91,
+    summary: "음성과 입술 움직임의 시간이 맞지 않습니다.",
+    reasons: ["오프셋 640ms", "허용 범위 ±200ms 초과"],
+    reasonCodes: ["av_sync_mismatch"],
+    evidence: { ...baseEvidence, avOffsetMs: 640, syncConfidence: 0.96 },
     actions: ["local_alert"],
-    message: "현관 상황을 확인해 주세요.",
+    message: "문 제어를 차단하고 재시도를 요청합니다.",
   },
   {
-    id: "warning",
-    label: "위험 징후",
-    sequence: 103,
-    readings: [
-      { metric: "presence", label: "사람 감지", value: true },
-      { metric: "dwell_seconds", label: "체류 시간", value: 49, unit: "초" },
-      { metric: "vibration_count", label: "진동 횟수", value: 3, unit: "회" },
-      { metric: "door_state", label: "문 상태", value: "닫힘" },
-    ],
-    assessment: {
-      score: 68,
-      level: "warning",
-      summary: "장시간 체류와 반복 진동이 감지되었습니다.",
-      reasons: ["장시간 체류", "반복 진동"],
-    },
+    id: "inconclusive",
+    label: "판단 불가",
+    sequence: 204,
+    decision: "inconclusive",
+    confidence: 0.38,
+    summary: "입술 영역을 안정적으로 판독할 수 없습니다.",
+    reasons: ["입술 가림", "영상 품질 부족"],
+    reasonCodes: ["mouth_not_visible", "capture_quality_low"],
+    evidence: { ...baseEvidence, mouthVisible: false, videoQuality: "bad" as CaptureQuality, syncConfidence: null, activeSpeakerScore: null },
     actions: ["camera_preview", "guardian_notice"],
-    message: "보호자 확인이 필요합니다.",
-  },
-  {
-    id: "critical",
-    label: "고위험",
-    sequence: 104,
-    readings: [
-      { metric: "presence", label: "사람 감지", value: true },
-      { metric: "dwell_seconds", label: "체류 시간", value: 76, unit: "초" },
-      { metric: "vibration_count", label: "진동 횟수", value: 7, unit: "회" },
-      { metric: "door_state", label: "문 상태", value: "강한 충격 감지" },
-    ],
-    assessment: {
-      score: 88,
-      level: "critical",
-      summary: "강한 반복 진동과 문 주변 충격이 감지되었습니다.",
-      reasons: ["장시간 체류", "반복적인 강한 진동", "문 주변 충격"],
-    },
-    actions: [
-      "local_alert",
-      "camera_preview",
-      "guardian_notice",
-      "confirm_emergency_call",
-    ],
-    message: "거주자에게 연락하고 상황을 확인하세요.",
+    message: "문 제어를 유지하고 앱 확인을 요청합니다.",
   },
 ];
 
 const history: EventLogItem[] = [
-  { id: "event-5", occurredAt: "17:24:12", title: "정상 방문", detail: "7초 체류 · 진동 없음", level: "normal", score: 14 },
-  { id: "event-4", occurredAt: "16:48:03", title: "복도 통행", detail: "3초 감지 · 문 조작 없음", level: "normal", score: 8 },
-  { id: "event-3", occurredAt: "14:10:27", title: "주의 관찰", detail: "28초 체류 · 진동 1회", level: "watch", score: 46 },
-  { id: "event-2", occurredAt: "09:31:44", title: "위험 징후", detail: "49초 체류 · 반복 진동", level: "warning", score: 68 },
-  { id: "event-1", occurredAt: "02:16:09", title: "고위험", detail: "76초 체류 · 강한 반복 진동", level: "critical", score: 88 },
+  { id: "av-event-4", occurredAt: "17:24:12", title: "현장 발화 통과", detail: "싱크 42ms · challenge 일치", decision: "pass", confidence: 0.91, level: "normal", score: 91 },
+  { id: "av-event-3", occurredAt: "14:10:27", title: "음성 재생 차단", detail: "화면 속 발화자 없음", decision: "block", confidence: 0.97, level: "critical", score: 97 },
+  { id: "av-event-2", occurredAt: "11:44:08", title: "판단 불가", detail: "입술 영역 판독 실패", decision: "inconclusive", confidence: 0.38, level: "watch", score: 38 },
+  { id: "av-event-1", occurredAt: "09:31:44", title: "싱크 불일치 차단", detail: "오프셋 640ms", decision: "block", confidence: 0.91, level: "critical", score: 91 },
 ];
 
 export const scenarioOptions = scenarios.map(({ id, label }) => ({ id, label }));
 
+const aliases: Record<string, string> = { normal: "pass", watch: "inconclusive", warning: "sync-mismatch", critical: "audio-replay" };
+
 function findScenario(id: string): DemoScenario {
-  return scenarios.find((scenario) => scenario.id === id) ?? scenarios[0];
+  const normalized = aliases[id] ?? id;
+  return scenarios.find((scenario) => scenario.id === normalized) ?? scenarios[0];
 }
 
-class DemoSensorGateway implements SensorGateway {
-  constructor(private readonly scenario: DemoScenario) {}
-
-  async getLatest(): Promise<SensorEvent> {
-    const capturedAt = new Date().toISOString();
-    return {
-      id: `demo-${this.scenario.id}-${this.scenario.sequence}`,
-      sequence: this.scenario.sequence,
-      capturedAt,
-      source: { provider: "DemoSensorGateway", deviceId: "RZ-DEMO-01", transport: "demo" },
-      readings: this.scenario.readings.map((reading, index) => ({
-        ...reading,
-        id: `${this.scenario.id}-${index}`,
-        quality: "good",
-        capturedAt,
-      })),
-    };
-  }
+function legacyLevel(decision: VerificationDecision): RiskLevel {
+  if (decision === "pass") return "normal";
+  if (decision === "block") return "critical";
+  if (decision === "inconclusive") return "watch";
+  return "pending";
 }
 
-/** No formula: fixed fixture values only, so UI/API flows can be tested. */
-class DemoPassThroughRiskEngine implements RiskEngine {
-  constructor(private readonly scenario: DemoScenario) {}
-
-  async evaluate(): Promise<RiskAssessment> {
-    return {
-      status: "demo",
-      engine: "DemoPassThroughRiskEngine",
-      algorithmVersion: null,
-      ...this.scenario.assessment,
-      evaluatedAt: new Date().toISOString(),
-    };
-  }
+function metrics(scenario: DemoScenario, capturedAt: string): SensorReading[] {
+  const evidence = scenario.evidence;
+  return [
+    { id: `${scenario.id}-face`, metric: "face_count", label: "얼굴 수", value: evidence.faceCount, unit: "명", quality: evidence.videoQuality === "good" ? "good" : "degraded", capturedAt },
+    { id: `${scenario.id}-offset`, metric: "av_offset_ms", label: "시청각 오프셋", value: evidence.avOffsetMs ?? "측정 불가", ...(evidence.avOffsetMs === null ? {} : { unit: "ms" }), quality: evidence.clockSynchronized ? "good" : "degraded", capturedAt },
+    { id: `${scenario.id}-sync`, metric: "sync_confidence", label: "싱크 신뢰도", value: evidence.syncConfidence === null ? "측정 불가" : Math.round(evidence.syncConfidence * 100), ...(evidence.syncConfidence === null ? {} : { unit: "%" }), quality: evidence.syncConfidence === null ? "degraded" : "good", capturedAt },
+    { id: `${scenario.id}-spoof`, metric: "audio_spoof_score", label: "음성 위조 의심", value: evidence.audioSpoofScore === null ? "측정 불가" : Math.round(evidence.audioSpoofScore * 100), ...(evidence.audioSpoofScore === null ? {} : { unit: "%" }), quality: evidence.audioQuality === "good" ? "good" : "degraded", capturedAt },
+  ];
 }
 
-const pipeline: PipelineStage[] = [
-  { id: "sensor", label: "센서 계층", detail: "교체 가능한 Gateway 인터페이스", state: "demo" },
-  { id: "normalize", label: "데이터 정규화", detail: "공통 SensorEvent 모델", state: "ready" },
-  { id: "risk", label: "위험도 엔진", detail: "로직 비움 · 고정 더미 결과", state: "pending" },
-  { id: "response", label: "대응 미리보기", detail: "실제 장치 제어 없음", state: "demo" },
-];
-
-export async function buildDemoSnapshot(scenarioId = "normal"): Promise<SystemSnapshot> {
+export async function buildDemoSnapshot(scenarioId = "pass"): Promise<SystemSnapshot> {
   const scenario = findScenario(scenarioId);
-  const sensorGateway = new DemoSensorGateway(scenario);
-  const riskEngine = new DemoPassThroughRiskEngine(scenario);
-  const sensorEvent = await sensorGateway.getLatest();
-  const assessment = await riskEngine.evaluate(sensorEvent);
-  const response: ResponsePlan = { status: "preview", actions: scenario.actions, message: scenario.message };
-
+  const generatedAt = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + 15_000).toISOString();
+  const validUntil = new Date(Date.now() + 3_000).toISOString();
+  const requestId = `request-${scenario.id}`;
+  const score = Math.round(scenario.confidence * 100);
+  const level = legacyLevel(scenario.decision);
   return {
     mode: "demo",
     scenarioId: scenario.id,
     scenarioLabel: scenario.label,
-    generatedAt: new Date().toISOString(),
-    sensorEvent,
-    assessment,
-    response,
-    pipeline,
+    generatedAt,
+    controlRequest: {
+      id: requestId,
+      deviceId: "RZ-EDGE-DEMO-01",
+      intent: "unlock",
+      transcript: "초록 우산 문 열어",
+      asrConfidence: 0.94,
+      requestedAt: generatedAt,
+      expiresAt,
+      challengeId: `challenge-${scenario.id}`,
+      nonce: `demo-nonce-${scenario.id}`,
+      challengePhrase: "초록 우산 문 열어",
+    },
+    sensorEvent: {
+      id: `demo-av-${scenario.id}-${scenario.sequence}`,
+      sequence: scenario.sequence,
+      capturedAt: generatedAt,
+      source: { provider: "DemoAVEdgeGateway", deviceId: "RZ-EDGE-DEMO-01", transport: "demo" },
+      readings: metrics(scenario, generatedAt),
+    },
+    verification: {
+      id: `verification-${scenario.id}`,
+      schemaVersion: "av-verification/1",
+      decision: scenario.decision,
+      confidence: scenario.confidence,
+      reasonCodes: scenario.reasonCodes,
+      summary: scenario.summary,
+      policyVersion: "av-policy/0.1",
+      evaluatedAt: generatedAt,
+      processingTimeMs: 428,
+      isDemo: true,
+      evidence: scenario.evidence,
+    },
+    gate: {
+      allowed: scenario.decision === "pass",
+      output: scenario.decision === "pass" ? "unlock_pulse" : "none",
+      reason: scenario.decision === "pass" ? "verified" : `verification_${scenario.decision}`,
+      validUntil,
+    },
+    assessment: { status: "demo", engine: "VerificationCompatibilityAdapter", algorithmVersion: null, score, level, summary: scenario.summary, reasons: scenario.reasons, evaluatedAt: generatedAt },
+    response: { status: "preview", actions: scenario.actions, message: scenario.message },
+    pipeline: [
+      { id: "capture", label: "카메라·마이크", detail: "동시 캡처와 타임스탬프", state: "pending" },
+      { id: "normalize", label: "증거 정규화", detail: "av-verification/1 계약", state: "ready" },
+      { id: "verify", label: "시청각 검증", detail: "결정론적 DEMO 어댑터", state: "demo" },
+      { id: "gate", label: "제어 게이트", detail: "PASS만 3초간 허용", state: "demo" },
+    ],
     recentEvents: history,
   };
 }

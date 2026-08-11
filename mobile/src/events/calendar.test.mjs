@@ -22,6 +22,8 @@ const events = [
     detail: "반복 충격",
     level: "critical",
     score: 88,
+    decision: "block",
+    confidence: 0.97,
   },
   {
     id: "watch-morning",
@@ -31,6 +33,8 @@ const events = [
     detail: "장시간 체류",
     level: "watch",
     score: 46,
+    decision: "inconclusive",
+    confidence: 0.38,
   },
   {
     id: "normal-yesterday",
@@ -40,6 +44,8 @@ const events = [
     detail: "짧은 방문",
     level: "normal",
     score: 14,
+    decision: "pass",
+    confidence: 0.91,
   },
 ];
 
@@ -65,15 +71,15 @@ test("선택 날짜의 이벤트를 최신순으로 조회한다", () => {
   );
 });
 
-test("이벤트를 시간대와 위험 단계로 분류한다", () => {
+test("이벤트를 시간대와 검증 판정으로 분류한다", () => {
   const selected = eventsForDate(events, "2026-07-27");
   assert.deepEqual(
     groupEvents(selected, "time").map((group) => group.label),
     ["오전", "저녁"],
   );
   assert.deepEqual(
-    groupEvents(selected, "risk").map((group) => group.label),
-    ["고위험", "주의"],
+    groupEvents(selected, "decision").map((group) => group.label),
+    ["차단", "판단 불가"],
   );
 });
 
@@ -88,6 +94,8 @@ test("날짜가 없는 기존 이벤트는 기준 날짜를 사용한다", () =>
         detail: "",
         level: "pending",
         score: null,
+        decision: "pending",
+        confidence: null,
       },
       fallback,
     ),

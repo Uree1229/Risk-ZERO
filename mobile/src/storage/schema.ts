@@ -1,5 +1,5 @@
 export const MOBILE_DATABASE_NAME = "risk-zero.db";
-export const MOBILE_SCHEMA_VERSION = 3;
+export const MOBILE_SCHEMA_VERSION = 4;
 
 export const MOBILE_SCHEMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -79,6 +79,84 @@ CREATE TABLE IF NOT EXISTS processed_videos (
   checksum_sha256 TEXT,
   captured_at TEXT NOT NULL,
   FOREIGN KEY (event_id) REFERENCES sensor_events(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS challenge_sessions (
+  id TEXT PRIMARY KEY NOT NULL,
+  phrase TEXT NOT NULL,
+  nonce TEXT NOT NULL UNIQUE,
+  issued_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  used_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS control_requests (
+  id TEXT PRIMARY KEY NOT NULL,
+  device_id TEXT NOT NULL,
+  intent TEXT NOT NULL
+    CHECK (intent IN ('unlock', 'lock', 'status')),
+  transcript TEXT NOT NULL,
+  asr_confidence REAL
+    CHECK (asr_confidence IS NULL OR (asr_confidence >= 0 AND asr_confidence <= 1)),
+  requested_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  challenge_id TEXT,
+  nonce TEXT NOT NULL UNIQUE,
+  FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
+  FOREIGN KEY (challenge_id) REFERENCES challenge_sessions(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS verification_attempts (
+  id TEXT PRIMARY KEY NOT NULL,
+  event_id TEXT NOT NULL UNIQUE,
+  request_id TEXT NOT NULL,
+  schema_version TEXT NOT NULL,
+  decision TEXT NOT NULL
+    CHECK (decision IN ('pending', 'pass', 'block', 'inconclusive')),
+  confidence REAL
+    CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),
+  reason_codes_json TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  policy_version TEXT NOT NULL,
+  evaluated_at TEXT NOT NULL,
+  processing_time_ms INTEGER NOT NULL
+    CHECK (processing_time_ms >= 0),
+  is_demo INTEGER NOT NULL DEFAULT 0
+    CHECK (is_demo IN (0, 1)),
+  FOREIGN KEY (event_id) REFERENCES sensor_events(id) ON DELETE CASCADE,
+  FOREIGN KEY (request_id) REFERENCES control_requests(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS verification_evidence (
+  attempt_id TEXT PRIMARY KEY NOT NULL,
+  person_present INTEGER NOT NULL CHECK (person_present IN (0, 1)),
+  face_count INTEGER NOT NULL CHECK (face_count >= 0),
+  mouth_visible INTEGER NOT NULL CHECK (mouth_visible IN (0, 1)),
+  audio_detected INTEGER NOT NULL CHECK (audio_detected IN (0, 1)),
+  av_offset_ms REAL,
+  sync_confidence REAL,
+  active_speaker_score REAL,
+  audio_spoof_score REAL,
+  visual_spoof_score REAL,
+  challenge_matched INTEGER CHECK (challenge_matched IS NULL OR challenge_matched IN (0, 1)),
+  audio_quality TEXT NOT NULL CHECK (audio_quality IN ('good', 'degraded', 'bad', 'missing')),
+  video_quality TEXT NOT NULL CHECK (video_quality IN ('good', 'degraded', 'bad', 'missing')),
+  clock_synchronized INTEGER NOT NULL CHECK (clock_synchronized IN (0, 1)),
+  model_versions_json TEXT NOT NULL,
+  FOREIGN KEY (attempt_id) REFERENCES verification_attempts(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS actuation_logs (
+  id TEXT PRIMARY KEY NOT NULL,
+  attempt_id TEXT NOT NULL,
+  request_id TEXT NOT NULL,
+  allowed INTEGER NOT NULL CHECK (allowed IN (0, 1)),
+  output TEXT NOT NULL CHECK (output IN ('unlock_pulse', 'lock_pulse', 'none')),
+  reason TEXT NOT NULL,
+  valid_until TEXT NOT NULL,
+  executed_at TEXT,
+  FOREIGN KEY (attempt_id) REFERENCES verification_attempts(id) ON DELETE CASCADE,
+  FOREIGN KEY (request_id) REFERENCES control_requests(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS event_reviews (
@@ -175,6 +253,12 @@ CREATE INDEX IF NOT EXISTS sensor_readings_event_metric_idx
   ON sensor_readings(event_id, metric);
 CREATE INDEX IF NOT EXISTS processed_videos_captured_idx
   ON processed_videos(captured_at DESC);
+CREATE INDEX IF NOT EXISTS control_requests_device_requested_idx
+  ON control_requests(device_id, requested_at DESC);
+CREATE INDEX IF NOT EXISTS verification_attempts_decision_evaluated_idx
+  ON verification_attempts(decision, evaluated_at DESC);
+CREATE INDEX IF NOT EXISTS actuation_logs_request_idx
+  ON actuation_logs(request_id, valid_until DESC);
 CREATE INDEX IF NOT EXISTS event_reviews_category_idx
   ON event_reviews(category, is_important);
 CREATE INDEX IF NOT EXISTS risk_assessments_incident_evaluated_idx

@@ -42,27 +42,26 @@ import type {
   DeviceSummary,
   EventLogItem,
   NotificationPreferences,
-  RiskLevel,
   SensorReading,
   SystemSnapshot,
+  VerificationDecision,
   VideoStorageSummary,
 } from "./src/types";
 
 type TabId = "home" | "events" | "settings";
 
 const scenarios = [
-  { id: "normal", label: "정상" },
-  { id: "watch", label: "주의" },
-  { id: "warning", label: "경고" },
-  { id: "critical", label: "고위험" },
+  { id: "pass", label: "통과" },
+  { id: "audio-replay", label: "음성 재생" },
+  { id: "sync-mismatch", label: "싱크 오류" },
+  { id: "inconclusive", label: "판단 불가" },
 ];
 
-const levelMeta: Record<RiskLevel, { label: string; color: string; soft: string }> = {
-  pending: { label: "판정 대기", color: "#93A2A4", soft: "#182224" },
-  normal: { label: "정상", color: "#72D8B2", soft: "#112A23" },
-  watch: { label: "주의", color: "#F5C86C", soft: "#2B2618" },
-  warning: { label: "경고", color: "#FF9F68", soft: "#2F2019" },
-  critical: { label: "고위험", color: "#FF6C73", soft: "#301A1D" },
+const decisionMeta: Record<VerificationDecision, { label: string; color: string; soft: string }> = {
+  pending: { label: "검증 대기", color: "#93A2A4", soft: "#182224" },
+  pass: { label: "통과", color: "#72D8B2", soft: "#112A23" },
+  inconclusive: { label: "판단 불가", color: "#F5C86C", soft: "#2B2618" },
+  block: { label: "차단", color: "#FF6C73", soft: "#301A1D" },
 };
 
 function readingValue(reading: SensorReading) {
@@ -95,8 +94,8 @@ function HomeScreen({
   onRefresh: () => void;
   onScenario: (scenarioId: string) => void;
 }) {
-  const meta = levelMeta[snapshot.assessment.level];
-  const score = snapshot.assessment.score ?? 0;
+  const meta = decisionMeta[snapshot.verification.decision];
+  const score = Math.round((snapshot.verification.confidence ?? 0) * 100);
 
   return (
     <ScrollView
@@ -105,8 +104,8 @@ function HomeScreen({
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.heroCopy}>
-        <Text style={styles.eyebrow}>HOME SAFETY</Text>
-        <Text style={styles.title}>현관 상태</Text>
+        <Text style={styles.eyebrow}>AUDIO-VISUAL VERIFY</Text>
+        <Text style={styles.title}>제어 요청 검증</Text>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scenarioRow}>
@@ -123,7 +122,7 @@ function HomeScreen({
       <View style={[styles.riskCard, { borderColor: `${meta.color}55` }]}>
         <View style={styles.riskTopline}>
           <View>
-            <Text style={styles.sectionLabel}>현재 상태</Text>
+            <Text style={styles.sectionLabel}>검증 결과</Text>
             <Text style={[styles.riskLabel, { color: meta.color }]}>{meta.label}</Text>
           </View>
           <View style={[styles.sourceBadge, { backgroundColor: source === "api" ? "#143027" : "#2A2518" }]}>
@@ -135,10 +134,10 @@ function HomeScreen({
         <View style={styles.scoreRow}>
           <View style={[styles.scoreCircle, { borderColor: meta.color, backgroundColor: meta.soft }]}>
             <Text style={[styles.scoreNumber, { color: meta.color }]}>{score}</Text>
-            <Text style={styles.scoreUnit}>/ 100</Text>
+            <Text style={styles.scoreUnit}>%</Text>
           </View>
           <View style={styles.scoreCopy}>
-            <Text style={styles.summary}>{snapshot.assessment.summary}</Text>
+            <Text style={styles.summary}>{snapshot.verification.summary}</Text>
             <View style={styles.reasonWrap}>
               {snapshot.assessment.reasons.map((reason) => <Text style={styles.reasonPill} key={reason}>{reason}</Text>)}
             </View>
@@ -146,19 +145,19 @@ function HomeScreen({
         </View>
 
         <View style={styles.responseBox}>
-          <Text style={styles.responseLabel}>권장 조치</Text>
+          <Text style={styles.responseLabel}>제어 게이트</Text>
           <Text style={styles.responseMessage}>{snapshot.response.message}</Text>
-          {snapshot.assessment.level === "critical" ? (
-            <Pressable style={styles.confirmButton} onPress={() => Alert.alert("기능 준비 중", "긴급 신고 기능은 아직 연결되지 않았습니다.")}>
-              <Text style={styles.confirmButtonText}>긴급 연락 안내</Text>
+          {snapshot.verification.decision !== "pass" ? (
+            <Pressable style={styles.confirmButton} onPress={() => Alert.alert("제어 차단", snapshot.verification.reasonCodes.join(" · "))}>
+              <Text style={styles.confirmButtonText}>차단 근거 확인</Text>
             </Pressable>
           ) : null}
         </View>
       </View>
 
       <View style={styles.sectionTitleRow}>
-        <View><Text style={styles.sectionLabel}>ENTRANCE SENSOR</Text><Text style={styles.sectionTitle}>감지 정보</Text></View>
-        <Text style={styles.providerText}>현관 센서</Text>
+        <View><Text style={styles.sectionLabel}>EDGE EVIDENCE</Text><Text style={styles.sectionTitle}>검증 수치</Text></View>
+        <Text style={styles.providerText}>카메라·마이크</Text>
       </View>
       <View style={styles.metricGrid}>{snapshot.sensorEvent.readings.map((reading) => <MetricCard key={reading.id} reading={reading} />)}</View>
     </ScrollView>
@@ -216,18 +215,18 @@ function SettingsScreen({
   const notificationRows = [
     {
       key: "watchEnabled" as const,
-      label: "주의 알림",
-      description: "주의 단계부터 알림",
+      label: "판단 불가 알림",
+      description: "품질 부족·다중 화자 확인",
     },
     {
       key: "warningEnabled" as const,
-      label: "경고 알림",
-      description: "경고 단계 알림",
+      label: "검증 오류 알림",
+      description: "싱크·모델 오류 확인",
     },
     {
       key: "criticalEnabled" as const,
-      label: "고위험 알림",
-      description: "가장 강한 알림",
+      label: "차단 알림",
+      description: "재생·불일치 요청 차단",
     },
   ];
   const storageRatio =
@@ -241,14 +240,14 @@ function SettingsScreen({
       <Text style={styles.pageTitle}>알림 및 저장</Text>
 
       <View style={styles.settingsSectionHeader}>
-        <Text style={styles.settingsSectionTitle}>위험 알림</Text>
+        <Text style={styles.settingsSectionTitle}>검증 알림</Text>
         <Text style={styles.settingsSectionCaption}>반복 제한 {notificationPreferences.cooldownMinutes}분</Text>
       </View>
       <View style={styles.settingsCard}>
         <View style={styles.settingRow}>
           <View>
             <Text style={styles.settingLabelStrong}>전체 알림</Text>
-            <Text style={styles.settingDescription}>위험 단계별 알림 사용</Text>
+            <Text style={styles.settingDescription}>판단 불가·차단 결과 알림</Text>
           </View>
           <Switch
             value={notificationPreferences.enabled}
@@ -355,7 +354,7 @@ function SettingsScreen({
             onChangeText={setDeviceId}
           />
           <TextInput
-            placeholder="장치 이름 (예: 뒷문 도어락)"
+            placeholder="장치 이름 (예: 현관 엣지 장치)"
             placeholderTextColor="#536164"
             style={styles.deviceInput}
             value={deviceName}
@@ -544,7 +543,7 @@ function SettingsScreen({
         <Text style={styles.noticeTitle}>현재 연결</Text>
         <Text style={styles.noticeCopy}>
           {source === "api" ? "개발 API에 연결됨" : "오프라인 시연 데이터 사용 중"} ·
-          긴급 신고는 자동 실행하지 않습니다.
+          실제 모델과 도어락은 연결하지 않았습니다.
         </Text>
       </View>
     </ScrollView>
@@ -553,7 +552,7 @@ function SettingsScreen({
 
 function RiskZeroApp() {
   const [activeTab, setActiveTab] = useState<TabId>("home");
-  const [scenarioId, setScenarioId] = useState("normal");
+  const [scenarioId, setScenarioId] = useState("pass");
   const [snapshot, setSnapshot] = useState<SystemSnapshot | null>(null);
   const [events, setEvents] = useState<EventLogItem[]>([]);
   const [source, setSource] = useState<"api" | "fallback">("fallback");
@@ -609,7 +608,7 @@ function RiskZeroApp() {
     void (async () => {
       setNotificationPreferences(await loadNotificationPreferences());
       setNotificationPermission(await initializeRiskNotifications());
-      await load("normal");
+      await load("pass");
     })();
   }, []);
 
@@ -619,7 +618,7 @@ function RiskZeroApp() {
   }, [load]);
 
   const content = useMemo(() => {
-    if (!snapshot) return <View style={styles.loading}><ActivityIndicator color="#9FE3CC" size="large" /><Text style={styles.loadingText}>현관 상태를 불러오는 중</Text></View>;
+    if (!snapshot) return <View style={styles.loading}><ActivityIndicator color="#9FE3CC" size="large" /><Text style={styles.loadingText}>검증 상태를 불러오는 중</Text></View>;
     if (activeTab === "events") {
       return (
         <EventsScreen
@@ -672,7 +671,7 @@ function RiskZeroApp() {
     <SafeAreaView edges={["top", "bottom"]} style={styles.safeArea}>
       <StatusBar style="light" />
       <View style={styles.header}>
-        <View style={styles.brandRow}><View style={styles.brandMark}><Text style={styles.brandMarkText}>RZ</Text></View><View><Text style={styles.brandName}>RISK-ZERO</Text><Text style={styles.brandSub}>현관 안전 모니터</Text></View></View>
+        <View style={styles.brandRow}><View style={styles.brandMark}><Text style={styles.brandMarkText}>RZ</Text></View><View><Text style={styles.brandName}>RISK-ZERO</Text><Text style={styles.brandSub}>시청각 발화 검증</Text></View></View>
         <View style={styles.demoBadge}><View style={styles.onlineDot} /><Text style={styles.demoBadgeText}>DEMO</Text></View>
       </View>
       <View style={styles.content}>{content}</View>

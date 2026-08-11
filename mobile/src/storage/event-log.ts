@@ -30,5 +30,8 @@ export function snapshotToEventLogItem(
     detail: snapshot.assessment.summary,
     level: snapshot.assessment.level,
     score: snapshot.assessment.score,
+    decision: snapshot.verification.decision,
+    confidence: snapshot.verification.confidence,
+    reasonCodes: snapshot.verification.reasonCodes,
   };
 }

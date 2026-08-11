@@ -56,7 +56,7 @@ export async function initializeRiskNotifications() {
         vibrationPattern: [0, 250, 150, 250],
       });
       await Notifications.setNotificationChannelAsync("risk-critical", {
-        name: "고위험 알림",
+        name: "발화 검증 차단",
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 400, 150, 400, 150, 400],
       });

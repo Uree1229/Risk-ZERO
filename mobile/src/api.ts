@@ -1,52 +1,178 @@
-import type { RiskLevel, SystemSnapshot } from "./types";
+import type {
+  RiskLevel,
+  SystemSnapshot,
+  VerificationDecision,
+  VerificationEvidence,
+} from "./types";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "";
 const API_CONFIGURED = API_BASE_URL.length > 0;
 
-const scenarioFixtures: Record<string, { label: string; score: number; level: Exclude<RiskLevel, "pending">; dwell: number; vibration: number; summary: string; reasons: string[]; response: string }> = {
-  normal: { label: "정상 방문", score: 14, level: "normal", dwell: 7, vibration: 0, summary: "짧은 방문이 감지되었습니다.", reasons: ["짧은 체류", "진동 없음"], response: "별도 확인이 필요하지 않습니다." },
-  watch: { label: "주의 관찰", score: 46, level: "watch", dwell: 28, vibration: 1, summary: "현관 앞 체류가 길어지고 있습니다.", reasons: ["체류 시간 증가", "일회성 진동"], response: "현관 상황을 확인해 주세요." },
-  warning: { label: "위험 징후", score: 68, level: "warning", dwell: 49, vibration: 3, summary: "장시간 체류와 반복 진동이 감지되었습니다.", reasons: ["장시간 체류", "반복 진동"], response: "보호자 확인이 필요합니다." },
-  critical: { label: "고위험", score: 88, level: "critical", dwell: 76, vibration: 7, summary: "강한 반복 진동과 문 주변 충격이 감지되었습니다.", reasons: ["장시간 체류", "반복적인 강한 진동"], response: "거주자에게 연락하고 상황을 확인하세요." },
+interface ScenarioFixture {
+  label: string;
+  decision: Exclude<VerificationDecision, "pending">;
+  confidence: number;
+  summary: string;
+  reasons: string[];
+  reasonCodes: string[];
+  evidence: VerificationEvidence;
+  response: string;
+}
+
+const baseEvidence: VerificationEvidence = {
+  personPresent: true,
+  faceCount: 1,
+  mouthVisible: true,
+  audioDetected: true,
+  avOffsetMs: 42,
+  syncConfidence: 0.93,
+  activeSpeakerScore: 0.91,
+  audioSpoofScore: 0.08,
+  visualSpoofScore: 0.05,
+  challengeMatched: true,
+  audioQuality: "good",
+  videoQuality: "good",
+  clockSynchronized: true,
+  modelVersions: {
+    avSync: "DemoSyncAdapter/0.1",
+    activeSpeaker: "DemoTalkAdapter/0.1",
+    audioSpoof: "DemoSpoofAdapter/0.1",
+  },
 };
 
-function fallbackSnapshot(scenarioId: string): SystemSnapshot {
-  const fixture = scenarioFixtures[scenarioId] ?? scenarioFixtures.normal;
+const scenarioFixtures: Record<string, ScenarioFixture> = {
+  pass: {
+    label: "현장 발화 통과",
+    decision: "pass",
+    confidence: 0.91,
+    summary: "현재 발화와 입술 움직임이 일치합니다.",
+    reasons: ["싱크 42ms", "활성 화자 확인", "challenge 일치"],
+    reasonCodes: ["verified_live_speech"],
+    evidence: baseEvidence,
+    response: "제어 요청을 3초 동안 허용합니다.",
+  },
+  "audio-replay": {
+    label: "음성 재생 차단",
+    decision: "block",
+    confidence: 0.97,
+    summary: "화면에서 현재 발화자를 확인하지 못했습니다.",
+    reasons: ["화면 속 발화자 없음", "재생 음성 의심"],
+    reasonCodes: ["no_visible_person", "audio_spoof_suspected"],
+    evidence: { ...baseEvidence, personPresent: false, faceCount: 0, mouthVisible: false, audioSpoofScore: 0.91 },
+    response: "문 제어를 차단하고 사건을 기록했습니다.",
+  },
+  "sync-mismatch": {
+    label: "싱크 불일치 차단",
+    decision: "block",
+    confidence: 0.91,
+    summary: "음성과 입술 움직임의 시간이 맞지 않습니다.",
+    reasons: ["오프셋 640ms", "허용 범위 ±200ms 초과"],
+    reasonCodes: ["av_sync_mismatch"],
+    evidence: { ...baseEvidence, avOffsetMs: 640, syncConfidence: 0.96 },
+    response: "문 제어를 차단하고 재시도를 요청합니다.",
+  },
+  inconclusive: {
+    label: "판단 불가",
+    decision: "inconclusive",
+    confidence: 0.38,
+    summary: "입술 영역을 안정적으로 판독할 수 없습니다.",
+    reasons: ["입술 가림", "영상 품질 부족"],
+    reasonCodes: ["mouth_not_visible", "capture_quality_low"],
+    evidence: { ...baseEvidence, mouthVisible: false, videoQuality: "bad", syncConfidence: null, activeSpeakerScore: null },
+    response: "문 제어를 유지하고 앱 확인을 요청합니다.",
+  },
+};
+
+const aliases: Record<string, string> = {
+  normal: "pass",
+  watch: "inconclusive",
+  warning: "sync-mismatch",
+  critical: "audio-replay",
+};
+
+function legacyLevel(decision: VerificationDecision): RiskLevel {
+  if (decision === "pass") return "normal";
+  if (decision === "block") return "critical";
+  if (decision === "inconclusive") return "watch";
+  return "pending";
+}
+
+function fallbackSnapshot(requestedScenarioId: string): SystemSnapshot {
+  const scenarioId = aliases[requestedScenarioId] ?? requestedScenarioId;
+  const fixture = scenarioFixtures[scenarioId] ?? scenarioFixtures.pass;
   const currentTime = new Date();
   const now = currentTime.toISOString();
+  const expiresAt = new Date(currentTime.getTime() + 15_000).toISOString();
+  const validUntil = new Date(currentTime.getTime() + 3_000).toISOString();
   const atToday = (hour: number, minute: number) => {
     const date = new Date(currentTime);
     date.setHours(hour, minute, 0, 0);
     return date.toISOString();
   };
+  const requestId = `request-${scenarioId}`;
+  const eventId = `mobile-av-${scenarioId}`;
+  const score = Math.round(fixture.confidence * 100);
+  const level = legacyLevel(fixture.decision);
   return {
     mode: "demo",
     scenarioId,
     scenarioLabel: fixture.label,
     generatedAt: now,
+    controlRequest: {
+      id: requestId,
+      deviceId: "RZ-EDGE-DEMO-01",
+      intent: "unlock",
+      transcript: "초록 우산 문 열어",
+      asrConfidence: 0.94,
+      requestedAt: now,
+      expiresAt,
+      challengeId: `challenge-${scenarioId}`,
+      nonce: `demo-nonce-${scenarioId}`,
+      challengePhrase: "초록 우산 문 열어",
+    },
     sensorEvent: {
-      id: `mobile-fallback-${scenarioId}`,
+      id: eventId,
       source: {
-        provider: "MobileDemoFallback",
-        deviceId: "RZ-MOBILE-01",
+        provider: "DemoAVEdgeGateway",
+        deviceId: "RZ-EDGE-DEMO-01",
         transport: "demo",
-        batteryPercent: 78,
-        storageUsedBytes: 186 * 1024 * 1024,
-        storageCapacityBytes: 1024 * 1024 * 1024,
+        batteryPercent: 84,
+        storageUsedBytes: 214 * 1024 * 1024,
+        storageCapacityBytes: 2048 * 1024 * 1024,
       },
       readings: [
-        { id: "presence", metric: "presence", label: "사람 감지", value: true, quality: "good", capturedAt: now },
-        { id: "dwell", metric: "dwell_seconds", label: "체류 시간", value: fixture.dwell, unit: "초", quality: "good", capturedAt: now },
-        { id: "vibration", metric: "vibration_count", label: "진동 횟수", value: fixture.vibration, unit: "회", quality: "good", capturedAt: now },
-        { id: "door", metric: "door_state", label: "문 상태", value: "닫힘", quality: "good", capturedAt: now },
+        { id: "face-count", metric: "face_count", label: "얼굴 수", value: fixture.evidence.faceCount, unit: "명", quality: fixture.evidence.videoQuality === "good" ? "good" : "degraded", capturedAt: now },
+        { id: "av-offset", metric: "av_offset_ms", label: "시청각 오프셋", value: fixture.evidence.avOffsetMs ?? "측정 불가", unit: fixture.evidence.avOffsetMs === null ? undefined : "ms", quality: fixture.evidence.clockSynchronized ? "good" : "degraded", capturedAt: now },
+        { id: "sync", metric: "sync_confidence", label: "싱크 신뢰도", value: fixture.evidence.syncConfidence === null ? "측정 불가" : Math.round(fixture.evidence.syncConfidence * 100), unit: fixture.evidence.syncConfidence === null ? undefined : "%", quality: fixture.evidence.syncConfidence === null ? "degraded" : "good", capturedAt: now },
+        { id: "spoof", metric: "audio_spoof_score", label: "음성 위조 의심", value: fixture.evidence.audioSpoofScore === null ? "측정 불가" : Math.round(fixture.evidence.audioSpoofScore * 100), unit: fixture.evidence.audioSpoofScore === null ? undefined : "%", quality: fixture.evidence.audioQuality === "good" ? "good" : "degraded", capturedAt: now },
       ],
     },
-    assessment: { status: "demo", engine: "DemoPassThroughRiskEngine", algorithmVersion: null, score: fixture.score, level: fixture.level, summary: fixture.summary, reasons: fixture.reasons },
-    response: { status: "preview", actions: fixture.level === "normal" ? ["standby"] : ["guardian_notice"], message: fixture.response },
+    assessment: { status: "demo", engine: "VerificationCompatibilityAdapter", algorithmVersion: null, score, level, summary: fixture.summary, reasons: fixture.reasons },
+    verification: {
+      id: `verification-${scenarioId}`,
+      schemaVersion: "av-verification/1",
+      decision: fixture.decision,
+      confidence: fixture.confidence,
+      reasonCodes: fixture.reasonCodes,
+      summary: fixture.summary,
+      policyVersion: "av-policy/0.1",
+      evaluatedAt: now,
+      processingTimeMs: 428,
+      isDemo: true,
+      evidence: fixture.evidence,
+    },
+    gate: {
+      allowed: fixture.decision === "pass",
+      output: fixture.decision === "pass" ? "unlock_pulse" : "none",
+      reason: fixture.decision === "pass" ? "verified" : `verification_${fixture.decision}`,
+      validUntil,
+    },
+    response: { status: "preview", actions: fixture.decision === "pass" ? ["standby"] : ["guardian_notice"], message: fixture.response },
     recentEvents: [
-      { id: "m1", capturedAt: atToday(17, 24), occurredAt: "17:24", title: "정상 방문", detail: "7초 체류 · 진동 없음", level: "normal", score: 14 },
-      { id: "m2", capturedAt: atToday(14, 10), occurredAt: "14:10", title: "주의 관찰", detail: "28초 체류 · 진동 1회", level: "watch", score: 46 },
-      { id: "m3", capturedAt: atToday(9, 31), occurredAt: "09:31", title: "위험 징후", detail: "49초 체류 · 반복 진동", level: "warning", score: 68 },
+      { id: "av-m1", capturedAt: atToday(17, 24), occurredAt: "17:24", title: "현장 발화 통과", detail: "싱크 42ms · challenge 일치", level: "normal", score: 91, decision: "pass", confidence: 0.91, reasonCodes: ["verified_live_speech"] },
+      { id: "av-m2", capturedAt: atToday(14, 10), occurredAt: "14:10", title: "음성 재생 차단", detail: "화면 속 발화자 없음", level: "critical", score: 97, decision: "block", confidence: 0.97, reasonCodes: ["no_visible_person"] },
+      { id: "av-m3", capturedAt: atToday(11, 44), occurredAt: "11:44", title: "판단 불가", detail: "입술 영역 판독 실패", level: "watch", score: 38, decision: "inconclusive", confidence: 0.38, reasonCodes: ["mouth_not_visible"] },
+      { id: "av-m4", capturedAt: atToday(9, 31), occurredAt: "09:31", title: "싱크 불일치 차단", detail: "오프셋 640ms", level: "critical", score: 91, decision: "block", confidence: 0.91, reasonCodes: ["av_sync_mismatch"] },
     ],
   };
 }

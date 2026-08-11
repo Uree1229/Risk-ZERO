@@ -38,6 +38,13 @@ function assessmentIdFor(snapshot: SystemSnapshot) {
   return `assessment:${snapshot.sensorEvent.id}`;
 }
 
+function decisionFromRiskLevel(level: RiskLevel) {
+  if (level === "normal") return "pass" as const;
+  if (level === "watch") return "inconclusive" as const;
+  if (level === "warning" || level === "critical") return "block" as const;
+  return "pending" as const;
+}
+
 function readingValues(reading: SensorReading) {
   if (typeof reading.value === "number") {
     return ["number", reading.value, null, null] as const;
@@ -175,6 +182,132 @@ export async function saveSnapshotLocally(snapshot: SystemSnapshot) {
         reading.capturedAt,
       );
     }
+
+    if (snapshot.controlRequest.challengeId) {
+      await transaction.runAsync(
+        `INSERT INTO challenge_sessions
+           (id, phrase, nonce, issued_at, expires_at, used_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           expires_at = excluded.expires_at,
+           used_at = excluded.used_at`,
+        snapshot.controlRequest.challengeId,
+        snapshot.controlRequest.challengePhrase ?? snapshot.controlRequest.transcript,
+        snapshot.controlRequest.nonce,
+        snapshot.controlRequest.requestedAt,
+        snapshot.controlRequest.expiresAt,
+        snapshot.verification.evaluatedAt,
+      );
+    }
+
+    await transaction.runAsync(
+      `INSERT INTO control_requests
+         (id, device_id, intent, transcript, asr_confidence, requested_at,
+          expires_at, challenge_id, nonce)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         transcript = excluded.transcript,
+         asr_confidence = excluded.asr_confidence,
+         expires_at = excluded.expires_at`,
+      snapshot.controlRequest.id,
+      device.deviceId,
+      snapshot.controlRequest.intent,
+      snapshot.controlRequest.transcript,
+      snapshot.controlRequest.asrConfidence,
+      snapshot.controlRequest.requestedAt,
+      snapshot.controlRequest.expiresAt,
+      snapshot.controlRequest.challengeId,
+      snapshot.controlRequest.nonce,
+    );
+
+    await transaction.runAsync(
+      `INSERT INTO verification_attempts
+         (id, event_id, request_id, schema_version, decision, confidence,
+          reason_codes_json, summary, policy_version, evaluated_at,
+          processing_time_ms, is_demo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         decision = excluded.decision,
+         confidence = excluded.confidence,
+         reason_codes_json = excluded.reason_codes_json,
+         summary = excluded.summary,
+         policy_version = excluded.policy_version,
+         evaluated_at = excluded.evaluated_at,
+         processing_time_ms = excluded.processing_time_ms,
+         is_demo = excluded.is_demo`,
+      snapshot.verification.id,
+      snapshot.sensorEvent.id,
+      snapshot.controlRequest.id,
+      snapshot.verification.schemaVersion,
+      snapshot.verification.decision,
+      snapshot.verification.confidence,
+      JSON.stringify(snapshot.verification.reasonCodes),
+      snapshot.verification.summary,
+      snapshot.verification.policyVersion,
+      snapshot.verification.evaluatedAt,
+      snapshot.verification.processingTimeMs,
+      snapshot.verification.isDemo ? 1 : 0,
+    );
+
+    const evidence = snapshot.verification.evidence;
+    await transaction.runAsync(
+      `INSERT INTO verification_evidence
+         (attempt_id, person_present, face_count, mouth_visible, audio_detected,
+          av_offset_ms, sync_confidence, active_speaker_score,
+          audio_spoof_score, visual_spoof_score, challenge_matched,
+          audio_quality, video_quality, clock_synchronized, model_versions_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(attempt_id) DO UPDATE SET
+         person_present = excluded.person_present,
+         face_count = excluded.face_count,
+         mouth_visible = excluded.mouth_visible,
+         audio_detected = excluded.audio_detected,
+         av_offset_ms = excluded.av_offset_ms,
+         sync_confidence = excluded.sync_confidence,
+         active_speaker_score = excluded.active_speaker_score,
+         audio_spoof_score = excluded.audio_spoof_score,
+         visual_spoof_score = excluded.visual_spoof_score,
+         challenge_matched = excluded.challenge_matched,
+         audio_quality = excluded.audio_quality,
+         video_quality = excluded.video_quality,
+         clock_synchronized = excluded.clock_synchronized,
+         model_versions_json = excluded.model_versions_json`,
+      snapshot.verification.id,
+      evidence.personPresent ? 1 : 0,
+      evidence.faceCount,
+      evidence.mouthVisible ? 1 : 0,
+      evidence.audioDetected ? 1 : 0,
+      evidence.avOffsetMs,
+      evidence.syncConfidence,
+      evidence.activeSpeakerScore,
+      evidence.audioSpoofScore,
+      evidence.visualSpoofScore,
+      evidence.challengeMatched === null ? null : evidence.challengeMatched ? 1 : 0,
+      evidence.audioQuality,
+      evidence.videoQuality,
+      evidence.clockSynchronized ? 1 : 0,
+      JSON.stringify(evidence.modelVersions),
+    );
+
+    await transaction.runAsync(
+      `INSERT INTO actuation_logs
+         (id, attempt_id, request_id, allowed, output, reason, valid_until, executed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         allowed = excluded.allowed,
+         output = excluded.output,
+         reason = excluded.reason,
+         valid_until = excluded.valid_until,
+         executed_at = excluded.executed_at`,
+      `actuation:${snapshot.verification.id}`,
+      snapshot.verification.id,
+      snapshot.controlRequest.id,
+      snapshot.gate.allowed ? 1 : 0,
+      snapshot.gate.output,
+      snapshot.gate.reason,
+      snapshot.gate.validUntil,
+      null,
+    );
 
     await transaction.runAsync(
       `INSERT INTO risk_assessments
@@ -322,6 +455,9 @@ export async function loadRecentEvents(limit = 50): Promise<EventLogItem[]> {
     review_is_important: number | null;
     review_memo: string | null;
     review_reviewed_at: string | null;
+    verification_decision: "pending" | "pass" | "block" | "inconclusive" | null;
+    verification_confidence: number | null;
+    verification_reason_codes_json: string | null;
   }>(
     `SELECT se.id,
             se.captured_at,
@@ -340,10 +476,14 @@ export async function loadRecentEvents(limit = 50): Promise<EventLogItem[]> {
             er.is_important AS review_is_important,
             er.memo AS review_memo,
             er.reviewed_at AS review_reviewed_at
+            ,va.decision AS verification_decision
+            ,va.confidence AS verification_confidence
+            ,va.reason_codes_json AS verification_reason_codes_json
        FROM sensor_events se
        JOIN incidents i ON i.id = se.incident_id
        LEFT JOIN processed_videos pv ON pv.event_id = se.id
        LEFT JOIN event_reviews er ON er.event_id = se.id
+       LEFT JOIN verification_attempts va ON va.event_id = se.id
        LEFT JOIN risk_assessments ra ON ra.id = (
          SELECT latest_ra.id
            FROM risk_assessments latest_ra
@@ -364,6 +504,11 @@ export async function loadRecentEvents(limit = 50): Promise<EventLogItem[]> {
     detail: row.detail,
     level: row.risk_level,
     score: row.risk_score,
+    decision: row.verification_decision ?? decisionFromRiskLevel(row.risk_level),
+    confidence: row.verification_confidence ?? (row.risk_score === null ? null : Math.max(0, Math.min(1, row.risk_score / 100))),
+    reasonCodes: row.verification_reason_codes_json
+      ? JSON.parse(row.verification_reason_codes_json) as string[]
+      : undefined,
     review: row.review_category
       ? {
           category: row.review_category,
@@ -850,6 +995,139 @@ export async function saveModuleEvents(
           event.video.checksumSha256 ?? null,
           event.video.capturedAt,
         );
+      }
+
+      if (event.controlRequest && event.verification) {
+        const request = event.controlRequest;
+        const verification = event.verification;
+
+        if (request.challengeId) {
+          await transaction.runAsync(
+            `INSERT INTO challenge_sessions
+               (id, phrase, nonce, issued_at, expires_at, used_at)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+               expires_at = excluded.expires_at,
+               used_at = excluded.used_at`,
+            request.challengeId,
+            request.challengePhrase ?? request.transcript,
+            request.nonce,
+            request.requestedAt,
+            request.expiresAt,
+            verification.evaluatedAt,
+          );
+        }
+
+        await transaction.runAsync(
+          `INSERT INTO control_requests
+             (id, device_id, intent, transcript, asr_confidence, requested_at,
+              expires_at, challenge_id, nonce)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             transcript = excluded.transcript,
+             asr_confidence = excluded.asr_confidence,
+             expires_at = excluded.expires_at`,
+          request.id,
+          device.id,
+          request.intent,
+          request.transcript,
+          request.asrConfidence,
+          request.requestedAt,
+          request.expiresAt,
+          request.challengeId,
+          request.nonce,
+        );
+
+        await transaction.runAsync(
+          `INSERT INTO verification_attempts
+             (id, event_id, request_id, schema_version, decision, confidence,
+              reason_codes_json, summary, policy_version, evaluated_at,
+              processing_time_ms, is_demo)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             decision = excluded.decision,
+             confidence = excluded.confidence,
+             reason_codes_json = excluded.reason_codes_json,
+             summary = excluded.summary,
+             policy_version = excluded.policy_version,
+             evaluated_at = excluded.evaluated_at,
+             processing_time_ms = excluded.processing_time_ms,
+             is_demo = excluded.is_demo`,
+          verification.id,
+          event.id,
+          request.id,
+          verification.schemaVersion,
+          verification.decision,
+          verification.confidence,
+          JSON.stringify(verification.reasonCodes),
+          verification.summary,
+          verification.policyVersion,
+          verification.evaluatedAt,
+          verification.processingTimeMs,
+          verification.isDemo ? 1 : 0,
+        );
+
+        const evidence = verification.evidence;
+        await transaction.runAsync(
+          `INSERT INTO verification_evidence
+             (attempt_id, person_present, face_count, mouth_visible, audio_detected,
+              av_offset_ms, sync_confidence, active_speaker_score,
+              audio_spoof_score, visual_spoof_score, challenge_matched,
+              audio_quality, video_quality, clock_synchronized, model_versions_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(attempt_id) DO UPDATE SET
+             person_present = excluded.person_present,
+             face_count = excluded.face_count,
+             mouth_visible = excluded.mouth_visible,
+             audio_detected = excluded.audio_detected,
+             av_offset_ms = excluded.av_offset_ms,
+             sync_confidence = excluded.sync_confidence,
+             active_speaker_score = excluded.active_speaker_score,
+             audio_spoof_score = excluded.audio_spoof_score,
+             visual_spoof_score = excluded.visual_spoof_score,
+             challenge_matched = excluded.challenge_matched,
+             audio_quality = excluded.audio_quality,
+             video_quality = excluded.video_quality,
+             clock_synchronized = excluded.clock_synchronized,
+             model_versions_json = excluded.model_versions_json`,
+          verification.id,
+          evidence.personPresent ? 1 : 0,
+          evidence.faceCount,
+          evidence.mouthVisible ? 1 : 0,
+          evidence.audioDetected ? 1 : 0,
+          evidence.avOffsetMs,
+          evidence.syncConfidence,
+          evidence.activeSpeakerScore,
+          evidence.audioSpoofScore,
+          evidence.visualSpoofScore,
+          evidence.challengeMatched === null ? null : evidence.challengeMatched ? 1 : 0,
+          evidence.audioQuality,
+          evidence.videoQuality,
+          evidence.clockSynchronized ? 1 : 0,
+          JSON.stringify(evidence.modelVersions),
+        );
+
+        if (event.actuation) {
+          await transaction.runAsync(
+            `INSERT INTO actuation_logs
+               (id, attempt_id, request_id, allowed, output, reason, valid_until, executed_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+               allowed = excluded.allowed,
+               output = excluded.output,
+               reason = excluded.reason,
+               valid_until = excluded.valid_until,
+               executed_at = excluded.executed_at`,
+            `actuation:${verification.id}`,
+            verification.id,
+            request.id,
+            event.actuation.allowed ? 1 : 0,
+            event.actuation.output,
+            event.actuation.reason,
+            event.actuation.validUntil,
+            null,
+          );
+        }
       }
     }
 

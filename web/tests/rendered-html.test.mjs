@@ -23,11 +23,21 @@ test("server-renders the RISK-ZERO monitoring page", async () => {
   const html = await response.text();
   const visibleHtml = html.split('<script id="_R_">')[0];
   assert.match(visibleHtml, /RISK-ZERO/);
-  assert.match(visibleHtml, /현관 상태/);
+  assert.match(visibleHtml, /제어 요청 검증/);
   assert.match(visibleHtml, /DEMO/);
   assert.match(visibleHtml, /최근 이벤트/);
   assert.doesNotMatch(visibleHtml, /SensorGateway|고정 더미 결과|교체 가능한 데이터 처리 흐름/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
+});
+
+test("server-renders the local camera and microphone capture page", async () => {
+  const response = await render("/capture");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  const visibleHtml = html.split('<script id="_R_">')[0];
+  assert.match(visibleHtml, /입력 수집 테스트/);
+  assert.match(visibleHtml, /카메라와 마이크가 같은 구간/);
+  assert.match(visibleHtml, /아직 시청각 검증 모델에는 전송하지 않습니다/);
 });
 
 test("exposes the normalized demo snapshot API", async () => {
@@ -35,17 +45,18 @@ test("exposes the normalized demo snapshot API", async () => {
   workerUrl.searchParams.set("api-test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
   const response = await worker.fetch(
-    new Request("http://localhost/api/snapshot?scenario=critical"),
+    new Request("http://localhost/api/snapshot?scenario=audio-replay"),
     { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
     { waitUntil() {}, passThroughOnException() {} },
   );
   assert.equal(response.status, 200);
   const payload = await response.json();
   assert.equal(payload.mode, "demo");
-  assert.equal(payload.scenarioId, "critical");
-  assert.equal(payload.assessment.engine, "DemoPassThroughRiskEngine");
-  assert.equal(payload.assessment.algorithmVersion, null);
-  assert.equal(payload.sensorEvent.source.provider, "DemoSensorGateway");
+  assert.equal(payload.scenarioId, "audio-replay");
+  assert.equal(payload.verification.decision, "block");
+  assert.equal(payload.verification.policyVersion, "av-policy/0.1");
+  assert.equal(payload.gate.allowed, false);
+  assert.equal(payload.sensorEvent.source.provider, "DemoAVEdgeGateway");
 });
 
 test("rejects an invalid sensor payload before database access", async () => {
@@ -65,6 +76,25 @@ test("rejects an invalid sensor payload before database access", async () => {
   const payload = await response.json();
   assert.equal(payload.error.code, "INVALID_PAYLOAD");
   assert.equal(payload.error.field, "householdId");
+});
+
+test("rejects an invalid verification payload before database access", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("invalid-verification-test", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const response = await worker.fetch(
+    new Request("http://localhost/api/verification-attempts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    }),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(response.status, 400);
+  const payload = await response.json();
+  assert.equal(payload.error.code, "INVALID_PAYLOAD");
+  assert.equal(payload.error.field, "controlRequest");
 });
 
 test("starter preview files are removed", async () => {

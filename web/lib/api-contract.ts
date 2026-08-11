@@ -28,6 +28,57 @@ export interface IncomingSensorEvent {
   rawPayload?: Record<string, unknown>;
 }
 
+export interface IncomingVerificationAttempt {
+  householdId: string;
+  eventId: string;
+  controlRequest: {
+    id: string;
+    deviceId: string;
+    intent: "unlock" | "lock" | "status";
+    transcript: string;
+    asrConfidence: number | null;
+    requestedAt: string;
+    expiresAt: string;
+    challengeId: string | null;
+    nonce: string;
+    challengePhrase?: string;
+  };
+  verification: {
+    id: string;
+    schemaVersion: "av-verification/1";
+    decision: "pending" | "pass" | "block" | "inconclusive";
+    confidence: number | null;
+    reasonCodes: string[];
+    summary: string;
+    policyVersion: string;
+    evaluatedAt: string;
+    processingTimeMs: number;
+    isDemo: boolean;
+    evidence: {
+      personPresent: boolean;
+      faceCount: number;
+      mouthVisible: boolean;
+      audioDetected: boolean;
+      avOffsetMs: number | null;
+      syncConfidence: number | null;
+      activeSpeakerScore: number | null;
+      audioSpoofScore: number | null;
+      visualSpoofScore: number | null;
+      challengeMatched: boolean | null;
+      audioQuality: "good" | "degraded" | "bad" | "missing";
+      videoQuality: "good" | "degraded" | "bad" | "missing";
+      clockSynchronized: boolean;
+      modelVersions: Record<string, string>;
+    };
+  };
+  gate: {
+    allowed: boolean;
+    output: "unlock_pulse" | "lock_pulse" | "none";
+    reason: string;
+    validUntil: string;
+  };
+}
+
 export class PayloadValidationError extends Error {
   constructor(
     message: string,
@@ -67,6 +118,49 @@ function readIsoDate(record: Record<string, unknown>, field: string, fallback?: 
     throw new PayloadValidationError(`${field}는 ISO-8601 날짜 형식이어야 합니다.`, field);
   }
   return new Date(value).toISOString();
+}
+
+function readRecord(record: Record<string, unknown>, field: string) {
+  const value = record[field];
+  if (!isRecord(value)) throw new PayloadValidationError(`${field}는 JSON 객체여야 합니다.`, field);
+  return value;
+}
+
+function readBoolean(record: Record<string, unknown>, field: string): boolean {
+  const value = record[field];
+  if (typeof value !== "boolean") throw new PayloadValidationError(`${field}는 true 또는 false여야 합니다.`, field);
+  return value;
+}
+
+function readNullableNumber(
+  record: Record<string, unknown>,
+  field: string,
+  options: { min?: number; max?: number; integer?: boolean } = {}
+): number | null {
+  const value = record[field];
+  if (value === null) return null;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new PayloadValidationError(`${field}는 숫자 또는 null이어야 합니다.`, field);
+  }
+  if (options.integer && !Number.isInteger(value)) {
+    throw new PayloadValidationError(`${field}는 정수여야 합니다.`, field);
+  }
+  if ((options.min !== undefined && value < options.min) || (options.max !== undefined && value > options.max)) {
+    throw new PayloadValidationError(`${field} 값이 허용 범위를 벗어났습니다.`, field);
+  }
+  return value;
+}
+
+function readEnum<const T extends readonly string[]>(
+  record: Record<string, unknown>,
+  field: string,
+  values: T
+): T[number] {
+  const value = readString(record, field, { required: true, maxLength: 64 });
+  if (!values.includes(value as T[number])) {
+    throw new PayloadValidationError(`${field} 값이 허용 목록에 없습니다.`, field);
+  }
+  return value as T[number];
 }
 
 function parseReading(value: unknown, eventCapturedAt: string, index: number): IncomingSensorReading {
@@ -151,5 +245,96 @@ export function parseSensorEventPayload(value: unknown): IncomingSensorEvent {
     payloadVersion: payloadVersion as number,
     readings: value.readings.map((reading, index) => parseReading(reading, capturedAt, index)),
     rawPayload: rawPayload as Record<string, unknown> | undefined,
+  };
+}
+
+export function parseVerificationAttemptPayload(value: unknown): IncomingVerificationAttempt {
+  if (!isRecord(value)) throw new PayloadValidationError("요청 본문은 JSON 객체여야 합니다.");
+
+  const control = readRecord(value, "controlRequest");
+  const verification = readRecord(value, "verification");
+  const evidence = readRecord(verification, "evidence");
+  const gate = readRecord(value, "gate");
+  const schemaVersion = readString(verification, "schemaVersion", { required: true, maxLength: 40 });
+  if (schemaVersion !== "av-verification/1") {
+    throw new PayloadValidationError("schemaVersion은 av-verification/1이어야 합니다.", "verification.schemaVersion");
+  }
+
+  const reasonCodesValue = verification.reasonCodes;
+  if (!Array.isArray(reasonCodesValue) || reasonCodesValue.length > 20 || reasonCodesValue.some((item) => typeof item !== "string" || item.length > 80)) {
+    throw new PayloadValidationError("reasonCodes는 최대 20개의 문자열 배열이어야 합니다.", "verification.reasonCodes");
+  }
+
+  const modelVersionsValue = evidence.modelVersions;
+  if (!isRecord(modelVersionsValue) || Object.entries(modelVersionsValue).some(([key, item]) => !key || typeof item !== "string" || item.length > 120)) {
+    throw new PayloadValidationError("modelVersions는 문자열 키·값 객체여야 합니다.", "verification.evidence.modelVersions");
+  }
+
+  const challengeIdValue = control.challengeId;
+  const challengeId = challengeIdValue === null
+    ? null
+    : readString(control, "challengeId", { required: true, maxLength: 128 })!;
+  const challengeMatchedValue = evidence.challengeMatched;
+  if (challengeMatchedValue !== null && typeof challengeMatchedValue !== "boolean") {
+    throw new PayloadValidationError("challengeMatched는 true, false 또는 null이어야 합니다.", "verification.evidence.challengeMatched");
+  }
+
+  const asrConfidence = readNullableNumber(control, "asrConfidence", { min: 0, max: 1 });
+  const confidence = readNullableNumber(verification, "confidence", { min: 0, max: 1 });
+  const faceCount = readNullableNumber(evidence, "faceCount", { min: 0, integer: true });
+  const processingTimeMs = readNullableNumber(verification, "processingTimeMs", { min: 0, integer: true });
+  if (faceCount === null || processingTimeMs === null) {
+    throw new PayloadValidationError("faceCount와 processingTimeMs는 null일 수 없습니다.");
+  }
+
+  return {
+    householdId: readString(value, "householdId", { required: true, maxLength: 128 })!,
+    eventId: readString(value, "eventId", { required: true, maxLength: 128 })!,
+    controlRequest: {
+      id: readString(control, "id", { required: true, maxLength: 128 })!,
+      deviceId: readString(control, "deviceId", { required: true, maxLength: 128 })!,
+      intent: readEnum(control, "intent", ["unlock", "lock", "status"] as const),
+      transcript: readString(control, "transcript", { required: true, maxLength: 500 })!,
+      asrConfidence,
+      requestedAt: readIsoDate(control, "requestedAt"),
+      expiresAt: readIsoDate(control, "expiresAt"),
+      challengeId,
+      nonce: readString(control, "nonce", { required: true, maxLength: 180 })!,
+      challengePhrase: readString(control, "challengePhrase", { maxLength: 120 }),
+    },
+    verification: {
+      id: readString(verification, "id", { required: true, maxLength: 128 })!,
+      schemaVersion: "av-verification/1",
+      decision: readEnum(verification, "decision", ["pending", "pass", "block", "inconclusive"] as const),
+      confidence,
+      reasonCodes: reasonCodesValue as string[],
+      summary: readString(verification, "summary", { required: true, maxLength: 500 })!,
+      policyVersion: readString(verification, "policyVersion", { required: true, maxLength: 80 })!,
+      evaluatedAt: readIsoDate(verification, "evaluatedAt"),
+      processingTimeMs,
+      isDemo: readBoolean(verification, "isDemo"),
+      evidence: {
+        personPresent: readBoolean(evidence, "personPresent"),
+        faceCount,
+        mouthVisible: readBoolean(evidence, "mouthVisible"),
+        audioDetected: readBoolean(evidence, "audioDetected"),
+        avOffsetMs: readNullableNumber(evidence, "avOffsetMs"),
+        syncConfidence: readNullableNumber(evidence, "syncConfidence", { min: 0, max: 1 }),
+        activeSpeakerScore: readNullableNumber(evidence, "activeSpeakerScore", { min: 0, max: 1 }),
+        audioSpoofScore: readNullableNumber(evidence, "audioSpoofScore", { min: 0, max: 1 }),
+        visualSpoofScore: readNullableNumber(evidence, "visualSpoofScore", { min: 0, max: 1 }),
+        challengeMatched: challengeMatchedValue as boolean | null,
+        audioQuality: readEnum(evidence, "audioQuality", ["good", "degraded", "bad", "missing"] as const),
+        videoQuality: readEnum(evidence, "videoQuality", ["good", "degraded", "bad", "missing"] as const),
+        clockSynchronized: readBoolean(evidence, "clockSynchronized"),
+        modelVersions: modelVersionsValue as Record<string, string>,
+      },
+    },
+    gate: {
+      allowed: readBoolean(gate, "allowed"),
+      output: readEnum(gate, "output", ["unlock_pulse", "lock_pulse", "none"] as const),
+      reason: readString(gate, "reason", { required: true, maxLength: 180 })!,
+      validUntil: readIsoDate(gate, "validUntil"),
+    },
   };
 }

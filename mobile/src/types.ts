@@ -1,5 +1,58 @@
 export type SensorValue = boolean | number | string;
 export type RiskLevel = "pending" | "normal" | "watch" | "warning" | "critical";
+export type VerificationDecision = "pending" | "pass" | "block" | "inconclusive";
+export type CaptureQuality = "good" | "degraded" | "bad" | "missing";
+
+export interface ControlRequest {
+  id: string;
+  deviceId: string;
+  intent: "unlock" | "lock" | "status";
+  transcript: string;
+  asrConfidence: number | null;
+  requestedAt: string;
+  expiresAt: string;
+  challengeId: string | null;
+  nonce: string;
+  challengePhrase?: string | null;
+}
+
+export interface VerificationEvidence {
+  personPresent: boolean;
+  faceCount: number;
+  mouthVisible: boolean;
+  audioDetected: boolean;
+  avOffsetMs: number | null;
+  syncConfidence: number | null;
+  activeSpeakerScore: number | null;
+  audioSpoofScore: number | null;
+  visualSpoofScore: number | null;
+  challengeMatched: boolean | null;
+  audioQuality: CaptureQuality;
+  videoQuality: CaptureQuality;
+  clockSynchronized: boolean;
+  modelVersions: Record<string, string>;
+}
+
+export interface VerificationResult {
+  id: string;
+  schemaVersion: "av-verification/1";
+  decision: VerificationDecision;
+  confidence: number | null;
+  reasonCodes: string[];
+  summary: string;
+  policyVersion: string;
+  evaluatedAt: string;
+  processingTimeMs: number;
+  isDemo: boolean;
+  evidence: VerificationEvidence;
+}
+
+export interface ActuationGateResult {
+  allowed: boolean;
+  output: "unlock_pulse" | "lock_pulse" | "none";
+  reason: string;
+  validUntil: string;
+}
 export type EventCategory =
   | "unclassified"
   | "resident"
@@ -68,6 +121,9 @@ export interface EventLogItem {
   detail: string;
   level: RiskLevel;
   score: number | null;
+  decision: VerificationDecision;
+  confidence: number | null;
+  reasonCodes?: string[];
   review?: EventReview;
   video?: {
     localUri: string;
@@ -84,6 +140,7 @@ export interface SystemSnapshot {
   scenarioId: string;
   scenarioLabel: string;
   generatedAt: string;
+  controlRequest: ControlRequest;
   sensorEvent: {
     id: string;
     source: {
@@ -105,6 +162,8 @@ export interface SystemSnapshot {
     summary: string;
     reasons: string[];
   };
+  verification: VerificationResult;
+  gate: ActuationGateResult;
   response: { status: "preview"; actions: string[]; message: string };
   recentEvents: EventLogItem[];
 }

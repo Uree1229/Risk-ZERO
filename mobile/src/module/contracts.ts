@@ -1,3 +1,9 @@
+import type {
+  ActuationGateResult,
+  ControlRequest,
+  VerificationResult,
+} from "../types";
+
 export type ModuleTransport = "ble" | "wifi" | "serial" | "demo" | "other";
 
 export interface ModuleDevice {
@@ -15,6 +21,9 @@ export interface ModuleEventDraft {
   capturedAt: string;
   metrics: ProcessedMetric[];
   video?: ProcessedVideoFile;
+  controlRequest?: ControlRequest;
+  verification?: VerificationResult;
+  actuation?: ActuationGateResult;
   dedupeKey?: string;
 }
 

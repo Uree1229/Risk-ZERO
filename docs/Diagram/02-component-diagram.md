@@ -1,56 +1,54 @@
 # Component Diagram
 
-하드웨어의 후처리 결과부터 모바일 로컬 저장·알림, 웹 개발 API까지의 컴포넌트를 보여줍니다.
-
 ![RISK-ZERO Component Diagram](02-component-diagram.png)
-
-## Mermaid 원본
 
 ```mermaid
 flowchart LR
-    HW["하드웨어<br/>분석·영상 후처리"]
-    User["거주자·보호자"]
+    Camera["카메라"]
+    Mic["마이크"]
+    ASR["음성 인식"]
 
-    subgraph Mobile["모바일 MVP"]
-        Gateway["ModuleGateway<br/>실제 어댑터 대기"]
+    subgraph Edge["현관 Edge"]
+        Capture["동시 캡처·타임스탬프"]
+        AVSync["AV Sync Adapter"]
+        Speaker["Active Speaker Adapter"]
+        Spoof["Spoof Adapter"]
+        Challenge["Challenge Manager"]
+        Policy["Verification Policy"]
+        Gate["Actuation Gate"]
         Buffer["Event Buffer"]
-        Sync["Sync Service"]
-        Files[("앱 영상 저장소")]
-        SQLite[("SQLite v3")]
-        Risk["RiskEngine 자리<br/>DEMO 또는 pending"]
-        Alerts["Local Notifications"]
-        Views["홈·캘린더·상세·설정"]
     end
 
-    subgraph Web["개발·시연 웹"]
-        SensorAPI["Sensor Event API"]
-        Validator["Payload Validator"]
-        Repo["Data Repository"]
-        D1[("Cloudflare D1")]
-        Snapshot["Snapshot API"]
-        Demo["Demo Runtime"]
-        Dashboard["Web Dashboard"]
+    subgraph Client["모바일·웹"]
+        ModuleGateway["ModuleGateway"]
+        LocalDB[("SQLite v4")]
+        Files[("영상 저장소")]
+        API["Verification API"]
+        D1[("D1")]
+        UI["모니터·캘린더·상세"]
     end
 
-    HW -. "수치 + 후처리 영상" .-> Gateway
-    Gateway --> Buffer
-    Buffer --> Sync
-    Sync --> Files
-    Sync --> SQLite
-    SQLite --> Risk
-    Risk --> Alerts
-    SQLite --> Views
-    Files --> Views
-    Alerts --> User
-    User --> Views
-
-    HW -. "개발용 HTTPS" .-> SensorAPI
-    SensorAPI --> Validator
-    Validator --> Repo
-    Repo --> D1
-    D1 --> Snapshot
-    Snapshot -. "DB 불가" .-> Demo
-    Snapshot --> Dashboard
+    Camera --> Capture
+    Mic --> Capture
+    Capture --> AVSync
+    Capture --> Speaker
+    Capture --> Spoof
+    ASR --> Challenge
+    AVSync --> Policy
+    Speaker --> Policy
+    Spoof --> Policy
+    Challenge --> Policy
+    Policy --> Gate
+    Policy --> Buffer
+    Gate --> Buffer
+    Buffer -. "BLE/Wi-Fi 대기" .-> ModuleGateway
+    ModuleGateway --> LocalDB
+    ModuleGateway --> Files
+    LocalDB --> UI
+    Files --> UI
+    Buffer -. "개발용 HTTPS" .-> API
+    API --> D1
+    D1 --> UI
 ```
 
-실제 위험도 엔진은 아직 없습니다. 모바일 기기 알림은 앱이 사건을 받은 뒤 동작하며, 원격 보호자 푸시나 앱 종료 상태의 하드웨어 수신을 대신하지 않습니다.
+점선은 실제 장치·모델 연결이 남은 경계다. 현재 모델 컴포넌트에는 결정론적 DEMO 입력만 사용한다.

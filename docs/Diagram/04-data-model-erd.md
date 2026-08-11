@@ -1,28 +1,54 @@
 # Data Model ERD
 
-모바일 SQLite schema v3의 12개 앱 데이터 테이블 관계를 보여줍니다. 별도의 `schema_migrations` 테이블까지 포함하면 총 13개입니다.
-
 ![RISK-ZERO Data Model ERD](04-data-model-erd.png)
-
-## Mermaid 원본
 
 ```mermaid
 erDiagram
-    DEVICES ||--o{ INCIDENTS : contains
     DEVICES ||--o{ SENSOR_EVENTS : produces
-    DEVICES ||--o| DEVICE_STATUS : reports
-    DEVICES ||--o| SYNC_STATES : syncs
-
-    INCIDENTS ||--o{ SENSOR_EVENTS : groups
+    DEVICES ||--o{ CONTROL_REQUESTS : receives
+    CHALLENGE_SESSIONS o|--o| CONTROL_REQUESTS : binds
     SENSOR_EVENTS ||--o{ SENSOR_READINGS : contains
-    SENSOR_EVENTS ||--o| PROCESSED_VIDEOS : has
-    SENSOR_EVENTS ||--o| EVENT_REVIEWS : reviewed
-    SENSOR_EVENTS ||--o| NOTIFICATION_DELIVERIES : notifies
+    SENSOR_EVENTS ||--o| PROCESSED_VIDEOS : includes
+    SENSOR_EVENTS ||--o| VERIFICATION_ATTEMPTS : triggers
+    CONTROL_REQUESTS ||--o| VERIFICATION_ATTEMPTS : evaluated_by
+    VERIFICATION_ATTEMPTS ||--|| VERIFICATION_EVIDENCE : contains
+    VERIFICATION_ATTEMPTS ||--o{ ACTUATION_LOGS : gates
 
-    INCIDENTS ||--o{ RISK_ASSESSMENTS : receives
-    SENSOR_EVENTS ||--o{ RISK_ASSESSMENTS : triggers
-    INCIDENTS ||--o{ RESPONSE_ACTIONS : has
-    RISK_ASSESSMENTS o|--o{ RESPONSE_ACTIONS : plans
+    CONTROL_REQUESTS {
+        text id PK
+        text device_id FK
+        text intent
+        text transcript
+        real asr_confidence
+        text nonce UK
+        text expires_at
+    }
+    VERIFICATION_ATTEMPTS {
+        text id PK
+        text event_id FK
+        text request_id FK
+        text decision
+        real confidence
+        text reason_codes_json
+        text policy_version
+    }
+    VERIFICATION_EVIDENCE {
+        text attempt_id PK
+        int face_count
+        real av_offset_ms
+        real sync_confidence
+        real active_speaker_score
+        real audio_spoof_score
+        text model_versions_json
+    }
+    ACTUATION_LOGS {
+        text id PK
+        text attempt_id FK
+        boolean allowed
+        text output
+        text valid_until
+        text executed_at
+    }
 ```
 
-새 센서는 `sensor_readings.metric` 행으로 확장합니다. 영상 파일은 DB 밖에 두고 `processed_videos.local_uri`만 저장합니다. 장치 삭제 시 외래키 cascade와 파일 정리를 함께 실행합니다.
+모바일 SQLite는 18개, 웹 D1은 계정·가구·감사 테이블을 포함해 19개다. 그림은 새 검증 흐름의 핵심 관계만 표시한다.

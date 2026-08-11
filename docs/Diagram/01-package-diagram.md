@@ -1,57 +1,51 @@
 # Package Diagram
 
-웹과 모바일의 소스 패키지 및 현재 의존 관계를 보여줍니다.
-
 ![RISK-ZERO Package Diagram](01-package-diagram.png)
-
-## Mermaid 원본
 
 ```mermaid
 flowchart LR
-    subgraph Mobile["mobile/ · Expo"]
-        App["App.tsx<br/>홈·설정·상태"]
-        Events["src/events/<br/>캘린더·상세·검색·분류"]
-        API["src/api.ts<br/>Snapshot API·fallback"]
-        Module["src/module/<br/>계약·버퍼·동기화"]
-        Storage["src/storage/<br/>SQLite v3·조회"]
-        Media["src/media/<br/>영상 복사·500MB 정리"]
-        Notify["src/notifications/<br/>단계별 로컬 알림"]
-        Devices["src/devices/<br/>장치 데이터 삭제"]
-        Types["src/types.ts<br/>모바일 DTO"]
+    subgraph Edge["edge/ · 검증 정책"]
+        Contracts["contracts.py<br/>요청·근거·결과"]
+        Challenge["challenge.py<br/>문구·nonce"]
+        Models["models.py<br/>모델 어댑터"]
+        Policy["policy.py<br/>판정 규칙"]
+        Actuator["actuator.py<br/>제어 게이트"]
+        Demo["demo.py<br/>공격 fixture"]
+        Models --> Policy
+        Challenge --> Policy
+        Contracts --> Policy
+        Policy --> Actuator
+        Demo --> Policy
+    end
 
-        App --> API
+    subgraph Mobile["mobile/ · Expo"]
+        App["App.tsx<br/>검증 모니터"]
+        Events["src/events<br/>캘린더·상세"]
+        Module["src/module<br/>ModuleEvent·동기화"]
+        Storage["src/storage<br/>SQLite v4"]
+        Media["src/media<br/>후처리 영상"]
+        Types["src/types.ts<br/>av-verification/1"]
         App --> Events
         App --> Storage
-        App --> Notify
-        App --> Devices
-        Events --> Storage
-        Events --> Media
         Module --> Storage
         Storage --> Media
-        Notify --> Storage
-        Devices --> Storage
-        Devices --> Media
-        API --> Types
         Storage --> Types
     end
 
-    subgraph Web["web/ · Next.js / vinext"]
-        UI["app/<br/>Dashboard"]
-        Routes["app/api/<br/>snapshot·sensor·incident·device"]
-        Domain["lib/<br/>도메인·검증·DEMO"]
-        Repo["db/<br/>D1 스키마·저장소"]
-        Worker["worker/<br/>Cloudflare 런타임"]
-
-        Worker --> UI
-        Worker --> Routes
-        UI --> Routes
+    subgraph Web["web/ · vinext"]
+        Dashboard["app/Dashboard.tsx"]
+        Capture["app/capture<br/>카메라·마이크"]
+        Routes["app/api<br/>event·verification"]
+        Domain["lib<br/>계약·DEMO"]
+        Repo["db<br/>D1 19 tables"]
+        Dashboard --> Routes
+        Capture -. "현재 업로드 없음" .-> Routes
         Routes --> Domain
         Routes --> Repo
-        Repo --> Domain
     end
 
-    API -->|"GET /api/snapshot"| Routes
-    Module -. "실제 BLE/Wi-Fi 어댑터 대기" .-> App
+    Edge -. "후처리 JSON" .-> Module
+    Edge -. "검증 API" .-> Routes
 ```
 
-모바일의 네이티브 저장·알림 구현은 웹 번들에서 대체 파일을 사용합니다. 웹과 모바일의 공통 Snapshot 타입은 아직 별도 파일에 중복되어 있어 추후 공용 패키지로 분리할 수 있습니다.
+공통 계약은 현재 Python, 모바일 TypeScript, 웹 TypeScript에 각각 정의되어 있다. 모델 연결 후에는 JSON Schema를 기준으로 계약 테스트를 추가한다.

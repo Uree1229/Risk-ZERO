@@ -24,20 +24,20 @@ export function isNotificationEnabledForLevel(
 }
 
 export function notificationCopy(event: EventLogItem) {
-  if (event.level === "critical") {
+  if (event.decision === "block") {
     return {
-      title: "고위험 상황 감지",
-      body: `${event.title} · 즉시 현관 상황을 확인해 주세요.`,
+      title: "발화 검증 차단",
+      body: `${event.title} · 제어 요청을 확인해 주세요.`,
     };
   }
-  if (event.level === "warning") {
+  if (event.decision === "inconclusive") {
     return {
-      title: "현관 위험 징후",
+      title: "발화 검증 필요",
       body: `${event.title} · ${event.detail}`,
     };
   }
   return {
-    title: "현관 주의 알림",
+    title: "발화 검증 알림",
     body: `${event.title} · ${event.detail}`,
   };
 }

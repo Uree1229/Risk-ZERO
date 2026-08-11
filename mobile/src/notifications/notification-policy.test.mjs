@@ -6,7 +6,7 @@ import {
   notificationCopy,
 } from "./notification-policy.ts";
 
-test("기본 설정은 경고와 고위험 알림만 보낸다", () => {
+test("기본 설정은 차단에 연결된 알림 단계를 활성화한다", () => {
   assert.equal(
     isNotificationEnabledForLevel("watch", DEFAULT_NOTIFICATION_PREFERENCES),
     false,
@@ -21,7 +21,7 @@ test("기본 설정은 경고와 고위험 알림만 보낸다", () => {
   );
 });
 
-test("전체 알림이 꺼져 있으면 위험 단계와 관계없이 보내지 않는다", () => {
+test("전체 알림이 꺼져 있으면 검증 판정과 관계없이 보내지 않는다", () => {
   assert.equal(
     isNotificationEnabledForLevel("critical", {
       ...DEFAULT_NOTIFICATION_PREFERENCES,
@@ -31,15 +31,17 @@ test("전체 알림이 꺼져 있으면 위험 단계와 관계없이 보내지 
   );
 });
 
-test("고위험 알림은 즉시 확인 문구를 사용한다", () => {
+test("차단 알림은 제어 요청 확인 문구를 사용한다", () => {
   const copy = notificationCopy({
     id: "critical",
     occurredAt: "12:00",
-    title: "강한 반복 충격",
-    detail: "충격 7회",
+    title: "음성 재생 차단",
+    detail: "화면 속 발화자 없음",
     level: "critical",
     score: 88,
+    decision: "block",
+    confidence: 0.97,
   });
-  assert.equal(copy.title, "고위험 상황 감지");
-  assert.match(copy.body, /즉시 현관 상황을 확인/);
+  assert.equal(copy.title, "발화 검증 차단");
+  assert.match(copy.body, /제어 요청을 확인/);
 });

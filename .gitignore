@@ -7,5 +7,7 @@ work/
 **/dist/
 mobile/android/
 *.log
+__pycache__/
+*.py[cod]
 .env
 .env.local
