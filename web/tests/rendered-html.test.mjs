@@ -35,9 +35,11 @@ test("server-renders the local camera and microphone capture page", async () => 
   assert.equal(response.status, 200);
   const html = await response.text();
   const visibleHtml = html.split('<script id="_R_">')[0];
-  assert.match(visibleHtml, /입력 수집 테스트/);
-  assert.match(visibleHtml, /카메라와 마이크가 같은 구간/);
-  assert.match(visibleHtml, /아직 시청각 검증 모델에는 전송하지 않습니다/);
+  assert.match(visibleHtml, /시험 데이터 수집/);
+  assert.match(visibleHtml, /영상과 실험 조건을 한 쌍으로 저장/);
+  assert.match(visibleHtml, /검증 모델이나 서버로 전송하지 않습니다/);
+  assert.match(visibleHtml, /참여자 코드/);
+  assert.match(visibleHtml, /정상 발화/);
 });
 
 test("exposes the normalized demo snapshot API", async () => {

@@ -1,6 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  CAPTURE_SCENARIOS,
+  captureFileStem,
+  createCaptureManifest,
+  mediaFileExtension,
+  type CaptureManifest,
+  type CaptureScenarioId,
+} from "@/lib/capture-manifest";
 
 const challengePhrases = [
   "초록 우산 문 열어",
@@ -10,6 +18,20 @@ const challengePhrases = [
 ];
 
 type CaptureState = "idle" | "requesting" | "ready" | "recording" | "captured" | "error";
+
+interface RecordingContext {
+  sessionId: string;
+  participantCode: string;
+  scenario: CaptureScenarioId;
+  challengePhrase: string;
+  startedAt: Date;
+}
+
+interface CaptureResult {
+  mediaUrl: string;
+  manifestUrl: string;
+  manifest: CaptureManifest;
+}
 
 function pickChallenge(current: string) {
   const candidates = challengePhrases.filter((phrase) => phrase !== current);
@@ -21,10 +43,13 @@ export function CaptureLab() {
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const recordingContextRef = useRef<RecordingContext | null>(null);
   const stopTimerRef = useRef<number | null>(null);
   const [state, setState] = useState<CaptureState>("idle");
   const [challenge, setChallenge] = useState(challengePhrases[0]);
-  const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
+  const [participantCode, setParticipantCode] = useState("P01");
+  const [scenario, setScenario] = useState<CaptureScenarioId>("bona-fide");
+  const [result, setResult] = useState<CaptureResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [devicesActive, setDevicesActive] = useState(false);
 
@@ -37,9 +62,12 @@ export function CaptureLab() {
 
   useEffect(() => {
     return () => {
-      if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+      if (result) {
+        URL.revokeObjectURL(result.mediaUrl);
+        URL.revokeObjectURL(result.manifestUrl);
+      }
     };
-  }, [recordedUrl]);
+  }, [result]);
 
   async function prepareCapture() {
     setState("requesting");
@@ -77,22 +105,56 @@ export function CaptureLab() {
       return;
     }
 
-    if (recordedUrl) {
-      URL.revokeObjectURL(recordedUrl);
-      setRecordedUrl(null);
+    if (!participantCode.trim()) {
+      setError("참여자 코드를 입력해주세요. 이름 대신 P01 같은 코드를 사용합니다.");
+      return;
     }
+
+    setError(null);
+    setResult(null);
     chunksRef.current = [];
     const preferredType = "video/webm;codecs=vp8,opus";
     const recorder = MediaRecorder.isTypeSupported(preferredType)
       ? new MediaRecorder(stream, { mimeType: preferredType })
       : new MediaRecorder(stream);
     recorderRef.current = recorder;
+    recordingContextRef.current = {
+      sessionId: crypto.randomUUID(),
+      participantCode: participantCode.trim(),
+      scenario,
+      challengePhrase: challenge,
+      startedAt: new Date(),
+    };
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) chunksRef.current.push(event.data);
     };
     recorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "video/webm" });
-      setRecordedUrl(URL.createObjectURL(blob));
+      const context = recordingContextRef.current;
+      const endedAt = new Date();
+      const mimeType = recorder.mimeType || "video/webm";
+      const blob = new Blob(chunksRef.current, { type: mimeType });
+      if (!context) {
+        setError("녹화 정보를 만들지 못했습니다. 다시 촬영해주세요.");
+        setState("error");
+        return;
+      }
+
+      const fileStem = captureFileStem(context.sessionId, context.scenario, context.startedAt);
+      const fileName = `${fileStem}.${mediaFileExtension(mimeType)}`;
+      const manifest = createCaptureManifest({
+        ...context,
+        endedAt,
+        fileName,
+        mimeType,
+        sizeBytes: blob.size,
+      });
+      const manifestBlob = new Blob([`${JSON.stringify(manifest, null, 2)}\n`], { type: "application/json" });
+      setResult({
+        mediaUrl: URL.createObjectURL(blob),
+        manifestUrl: URL.createObjectURL(manifestBlob),
+        manifest,
+      });
+      recordingContextRef.current = null;
       setState("captured");
     };
     recorder.start(250);
@@ -106,7 +168,7 @@ export function CaptureLab() {
     streamRef.current = null;
     if (previewRef.current) previewRef.current.srcObject = null;
     setDevicesActive(false);
-    setState(recordedUrl ? "captured" : "idle");
+    setState(result ? "captured" : "idle");
   }
 
   return (
@@ -118,8 +180,8 @@ export function CaptureLab() {
 
       <section className="capture-heading">
         <p className="eyebrow">CAMERA + MICROPHONE</p>
-        <h1>입력 수집 테스트</h1>
-        <p>카메라와 마이크가 같은 구간을 녹화하는지만 확인합니다. 아직 시청각 검증 모델에는 전송하지 않습니다.</p>
+        <h1>시험 데이터 수집</h1>
+        <p>영상과 실험 조건을 한 쌍으로 저장합니다. 파일은 이 브라우저에서만 만들어지며 검증 모델이나 서버로 전송하지 않습니다.</p>
       </section>
 
       <section className="capture-grid">
@@ -138,21 +200,54 @@ export function CaptureLab() {
           {error ? <p className="capture-error" role="alert">{error}</p> : null}
         </article>
 
-        <aside className="challenge-panel">
-          <span>이번 문구</span>
-          <strong>{challenge}</strong>
-          <p>화면을 보며 문구를 자연스럽게 한 번 읽어주세요.</p>
-          <button className="secondary-button" disabled={state === "recording"} onClick={() => setChallenge(pickChallenge(challenge))}>새 문구</button>
-        </aside>
+        <div className="capture-side-stack">
+          <aside className="capture-config-panel">
+            <span>실험 조건</span>
+            <label>
+              참여자 코드
+              <input
+                value={participantCode}
+                maxLength={24}
+                disabled={state === "recording"}
+                onChange={(event) => setParticipantCode(event.target.value)}
+                placeholder="예: P01"
+              />
+            </label>
+            <label>
+              촬영 유형
+              <select value={scenario} disabled={state === "recording"} onChange={(event) => setScenario(event.target.value as CaptureScenarioId)}>
+                {CAPTURE_SCENARIOS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+              </select>
+            </label>
+            <p>실명은 입력하지 않습니다. 같은 참여자는 같은 코드를 사용해주세요.</p>
+          </aside>
+
+          <aside className="challenge-panel">
+            <span>이번 문구</span>
+            <strong>{challenge}</strong>
+            <p>화면을 보며 문구를 자연스럽게 한 번 읽어주세요.</p>
+            <button className="secondary-button" disabled={state === "recording"} onClick={() => setChallenge(pickChallenge(challenge))}>새 문구</button>
+          </aside>
+        </div>
       </section>
 
-      {recordedUrl ? (
+      {result ? (
         <section className="recorded-panel">
-          <div><span className="card-kicker">CAPTURED CLIP</span><h2>녹화 확인</h2></div>
-          <video src={recordedUrl} controls playsInline aria-label="녹화된 시청각 클립" />
+          <div><span className="card-kicker">CAPTURED PAIR</span><h2>영상·메타데이터 확인</h2></div>
+          <div className="capture-result-grid">
+            <video src={result.mediaUrl} controls playsInline aria-label="녹화된 시청각 클립" />
+            <dl>
+              <div><dt>상태</dt><dd>미평가</dd></div>
+              <div><dt>참여자</dt><dd>{result.manifest.participantCode}</dd></div>
+              <div><dt>유형</dt><dd>{CAPTURE_SCENARIOS.find((item) => item.id === result.manifest.scenario)?.label}</dd></div>
+              <div><dt>길이</dt><dd>{(result.manifest.capturedAt.durationMs / 1_000).toFixed(1)}초</dd></div>
+              <div><dt>세션</dt><dd>{result.manifest.sessionId.slice(0, 12)}</dd></div>
+            </dl>
+          </div>
           <div className="capture-result-row">
-            <span>상태</span><strong>모델 입력 준비</strong>
-            <a href={recordedUrl} download="risk-zero-av-capture.webm">테스트 파일 저장</a>
+            <span>두 파일을 같은 폴더에 보관해주세요.</span>
+            <a href={result.mediaUrl} download={result.manifest.media.fileName}>영상 저장</a>
+            <a href={result.manifestUrl} download={`${result.manifest.media.fileName.replace(/\.[^.]+$/, "")}.json`}>정보 JSON 저장</a>
           </div>
         </section>
       ) : null}

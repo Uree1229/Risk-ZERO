@@ -14,6 +14,12 @@
 
 ![RISK-ZERO 웹 입력 수집 테스트](RISK-ZERO-web-av-capture.png)
 
+## 웹 시험 데이터 수집
+
+참여자 코드와 공격 유형을 선택하고, 영상과 JSON을 한 쌍으로 저장하는 화면이다.
+
+![RISK-ZERO 웹 시험 데이터 수집](RISK-ZERO-web-av-dataset-capture.png)
+
 ## 이전 주제 화면
 
 아래 이미지는 Mobile v0.2.0의 현관 위험 대응 주제 기록이다.
