@@ -9,7 +9,7 @@ from typing import Any
 from .capture_pair import CAPTURE_SCENARIOS, CapturePairValidationError, load_capture_pair
 
 
-DATASET_INDEX_VERSION = "av-dataset-index/1"
+DATASET_INDEX_VERSION = "av-dataset-index/2"
 
 
 class DatasetIndexError(ValueError):
@@ -77,6 +77,7 @@ def build_dataset_index(root: str | Path, *, generated_at: datetime | None = Non
                 "participantCode": normalized["participantCode"],
                 "scenario": normalized["scenario"],
                 "challengePhrase": normalized["challengePhrase"],
+                "conditions": normalized["conditions"],
                 "capturedAt": normalized["captureStartedAt"],
                 "durationMs": normalized["durationMs"],
                 "manifestFile": relative_manifest,

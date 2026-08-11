@@ -40,6 +40,9 @@ test("server-renders the local camera and microphone capture page", async () => 
   assert.match(visibleHtml, /검증 모델이나 서버로 전송하지 않습니다/);
   assert.match(visibleHtml, /참여자 코드/);
   assert.match(visibleHtml, /정상 발화/);
+  assert.match(visibleHtml, /촬영 거리/);
+  assert.match(visibleHtml, /재생 장치/);
+  assert.match(visibleHtml, /주변 소음/);
 });
 
 test("exposes the normalized demo snapshot API", async () => {

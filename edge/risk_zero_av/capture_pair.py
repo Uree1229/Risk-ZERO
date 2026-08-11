@@ -9,7 +9,8 @@ from typing import Any
 from .models import CaptureSession
 
 
-CAPTURE_MANIFEST_VERSION = "av-capture-manifest/1"
+CAPTURE_MANIFEST_VERSION = "av-capture-manifest/2"
+SUPPORTED_CAPTURE_MANIFEST_VERSIONS = frozenset({"av-capture-manifest/1", CAPTURE_MANIFEST_VERSION})
 CAPTURE_SCENARIOS = frozenset(
     {
         "bona-fide",
@@ -20,6 +21,28 @@ CAPTURE_SCENARIOS = frozenset(
         "background-noise",
     }
 )
+CAPTURE_CONDITION_VALUES = {
+    "distance": frozenset({"near", "standard", "far"}),
+    "lighting": frozenset({"normal", "low-light", "backlight"}),
+    "playbackDevice": frozenset({"none", "phone", "speaker", "monitor"}),
+    "noise": frozenset({"quiet", "conversation", "music", "outdoor"}),
+}
+
+
+@dataclass(frozen=True)
+class CaptureConditions:
+    distance: str
+    lighting: str
+    playback_device: str
+    noise: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "distance": self.distance,
+            "lighting": self.lighting,
+            "playbackDevice": self.playback_device,
+            "noise": self.noise,
+        }
 
 
 class CapturePairValidationError(ValueError):
@@ -39,15 +62,18 @@ class CapturePair:
     mime_type: str
     size_bytes: int
     duration_ms: int
+    schema_version: str
+    conditions: CaptureConditions
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "valid": True,
-            "schemaVersion": CAPTURE_MANIFEST_VERSION,
+            "schemaVersion": self.schema_version,
             "sessionId": self.session.id,
             "participantCode": self.participant_code,
             "scenario": self.scenario,
             "challengePhrase": self.challenge_phrase,
+            "conditions": self.conditions.to_dict(),
             "captureStartedAt": self.session.capture_started_at,
             "captureEndedAt": self.session.capture_ended_at,
             "durationMs": self.duration_ms,
@@ -82,6 +108,13 @@ def _parse_timestamp(value: Any, field: str) -> datetime:
     return parsed
 
 
+def _required_condition(conditions: dict[str, Any], field: str) -> str:
+    value = _required_text(conditions.get(field), f"conditions.{field}")
+    if value not in CAPTURE_CONDITION_VALUES[field]:
+        raise CapturePairValidationError("invalid_condition", f"unsupported conditions.{field}: {value}")
+    return value
+
+
 def load_capture_pair(manifest_path: str | Path) -> CapturePair:
     path = Path(manifest_path).resolve()
     if not path.is_file():
@@ -96,8 +129,10 @@ def load_capture_pair(manifest_path: str | Path) -> CapturePair:
 
     if not isinstance(payload, dict):
         raise CapturePairValidationError("invalid_manifest", "manifest root must be an object")
-    if payload.get("schemaVersion") != CAPTURE_MANIFEST_VERSION:
-        raise CapturePairValidationError("unsupported_schema", f"schemaVersion must be {CAPTURE_MANIFEST_VERSION}")
+    schema_version = payload.get("schemaVersion")
+    if schema_version not in SUPPORTED_CAPTURE_MANIFEST_VERSIONS:
+        supported = ", ".join(sorted(SUPPORTED_CAPTURE_MANIFEST_VERSIONS))
+        raise CapturePairValidationError("unsupported_schema", f"schemaVersion must be one of: {supported}")
     if payload.get("source") != "browser-local":
         raise CapturePairValidationError("invalid_source", "source must be browser-local")
     if payload.get("verificationStatus") != "not_evaluated":
@@ -109,6 +144,21 @@ def load_capture_pair(manifest_path: str | Path) -> CapturePair:
     if scenario not in CAPTURE_SCENARIOS:
         raise CapturePairValidationError("invalid_scenario", f"unsupported scenario: {scenario}")
     challenge_phrase = _required_text(payload.get("challengePhrase"), "challengePhrase")
+    if schema_version == CAPTURE_MANIFEST_VERSION:
+        raw_conditions = _required_mapping(payload.get("conditions"), "conditions")
+        conditions = CaptureConditions(
+            distance=_required_condition(raw_conditions, "distance"),
+            lighting=_required_condition(raw_conditions, "lighting"),
+            playback_device=_required_condition(raw_conditions, "playbackDevice"),
+            noise=_required_condition(raw_conditions, "noise"),
+        )
+    else:
+        conditions = CaptureConditions(
+            distance="unspecified",
+            lighting="unspecified",
+            playback_device="unspecified",
+            noise="unspecified",
+        )
 
     captured_at = _required_mapping(payload.get("capturedAt"), "capturedAt")
     started = _parse_timestamp(captured_at.get("started"), "capturedAt.started")
@@ -151,6 +201,7 @@ def load_capture_pair(manifest_path: str | Path) -> CapturePair:
             "participantCode": participant_code,
             "scenario": scenario,
             "challengePhrase": challenge_phrase,
+            "conditions": conditions.to_dict(),
             "manifestPath": str(path),
         },
     )
@@ -164,4 +215,6 @@ def load_capture_pair(manifest_path: str | Path) -> CapturePair:
         mime_type=mime_type,
         size_bytes=size_bytes,
         duration_ms=duration_ms,
+        schema_version=schema_version,
+        conditions=conditions,
     )

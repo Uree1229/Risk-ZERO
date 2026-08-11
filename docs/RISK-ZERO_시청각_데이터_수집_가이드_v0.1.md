@@ -1,6 +1,6 @@
 # RISK-ZERO 시청각 데이터 수집 가이드
 
-- 버전: v0.1
+- 버전: v0.2
 - 작성일: 2026-08-11
 - 범위: 캡스톤 파일럿 시험
 
@@ -54,15 +54,21 @@ python -m edge.risk_zero_av --index-dataset C:\RISK-ZERO-dataset --output C:\RIS
 
 ## 4. JSON 규격
 
-`schemaVersion`은 `av-capture-manifest/1`이다.
+`schemaVersion`은 `av-capture-manifest/2`다. v2부터 거리·조명·재생 장치·주변 소음을 함께 기록한다.
 
 ```json
 {
-  "schemaVersion": "av-capture-manifest/1",
+  "schemaVersion": "av-capture-manifest/2",
   "sessionId": "64cae736-e532-4692-97d6-21fd87fb39f1",
   "participantCode": "P01",
   "scenario": "bona-fide",
   "challengePhrase": "초록 우산 문 열어",
+  "conditions": {
+    "distance": "standard",
+    "lighting": "normal",
+    "playbackDevice": "none",
+    "noise": "quiet"
+  },
   "capturedAt": {
     "started": "2026-08-11T03:04:05.123Z",
     "ended": "2026-08-11T03:04:09.373Z",
@@ -80,15 +86,28 @@ python -m edge.risk_zero_av --index-dataset C:\RISK-ZERO-dataset --output C:\RIS
 
 `verificationStatus`는 실제 모델을 실행하기 전까지 항상 `not_evaluated`다. 웹 화면에서 임의의 싱크 점수나 PASS/BLOCK 결과를 만들지 않는다.
 
-## 5. 데이터 분리와 품질 확인
+기존 `av-capture-manifest/1` 파일도 검사할 수 있다. v1에는 환경 조건이 없으므로 인덱스에서 각 조건을 `unspecified`로 표시한다.
+
+## 5. 환경 조건 값
+
+| 항목 | 값 | 의미 |
+| --- | --- | --- |
+| 거리 | `near` / `standard` / `far` | 약 0.5m / 1m / 2m |
+| 조명 | `normal` / `low-light` / `backlight` | 일반 조명 / 저조도 / 역광 |
+| 재생 장치 | `none` / `phone` / `speaker` / `monitor` | 재생 장치를 쓰지 않거나 해당 장치를 사용 |
+| 소음 | `quiet` / `conversation` / `music` / `outdoor` | 조용함 / 주변 대화 / 음악 / 실외 소음 |
+
+이 값은 정밀 계측값이 아니라 반복 시험 조건을 구분하는 라벨이다. 실제 거리나 소음 dB를 측정한 경우에는 별도 실험 일지에 수치를 기록한다.
+
+## 6. 데이터 분리와 품질 확인
 
 - 같은 참여자의 영상이 개발 세트와 최종 테스트 세트에 동시에 들어가지 않게 참여자 단위로 나눈다.
 - 촬영 실패, 무음, 얼굴 미검출 여부는 원본을 지우지 말고 별도 품질 점검표에 기록한다.
 - 정상·공격 유형 수가 지나치게 한쪽으로 치우치지 않게 한다.
-- 거리, 조명, 재생 장치, 소음 크기처럼 JSON에 아직 없는 조건은 실험 일지에 기록한다.
+- 실제 거리, 조도, 소음 dB처럼 선택 라벨보다 정밀한 수치는 별도 실험 일지에 기록한다.
 - 모델 임계값은 개발 세트로 정하고 최종 테스트 세트에서는 바꾸지 않는다.
 
-## 6. 개인정보 원칙
+## 7. 개인정보 원칙
 
 - 촬영 전에 목적, 보관 기간, 열람자, 삭제 요청 방법을 안내하고 동의를 받는다.
 - 참여자 코드와 실명 대응표는 영상 폴더와 분리한다.
@@ -96,6 +115,6 @@ python -m edge.risk_zero_av --index-dataset C:\RISK-ZERO-dataset --output C:\RIS
 - 수집 목적이 끝나거나 참여자가 요청하면 원본, 복사본, 파생 파일을 함께 삭제한다.
 - 타인의 영상·음성을 이용한 재생 공격 시험은 당사자 동의가 있는 자료만 사용한다.
 
-## 7. 이번 구현의 경계
+## 8. 이번 구현의 경계
 
 현재 화면은 로컬 동시 녹화와 메타데이터 생성을 지원한다. 카메라·마이크 동기 정확도 측정, 모델 학습, 자동 라벨 검증, 서버 업로드, DB 적재는 아직 구현하지 않았다.

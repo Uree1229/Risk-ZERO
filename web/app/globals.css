@@ -135,6 +135,7 @@ footer { display: flex; justify-content: flex-end; padding: 22px 2px 0; color: #
 .capture-config-panel, .challenge-panel { display: grid; align-content: center; gap: 16px; }
 .capture-config-panel > span, .challenge-panel > span { color: var(--mint); font-size: 10px; font-weight: 800; letter-spacing: .1em; }
 .capture-config-panel label { display: grid; gap: 7px; color: #bec9c9; font-size: 10px; }
+.capture-condition-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 9px; }
 .capture-config-panel input, .capture-config-panel select { width: 100%; border: 1px solid var(--line); border-radius: 9px; background: #0b1314; color: var(--ink); padding: 10px 11px; font-size: 11px; }
 .capture-config-panel input:focus, .capture-config-panel select:focus { outline: 2px solid rgba(159,227,204,.3); outline-offset: 1px; }
 .capture-config-panel input:disabled, .capture-config-panel select:disabled { opacity: .55; }
@@ -189,6 +190,7 @@ footer { display: flex; justify-content: flex-end; padding: 22px 2px 0; color: #
   .capture-preview { min-height: 260px; }
   .capture-result-row { align-items: flex-start; flex-wrap: wrap; }
   .capture-result-row a:first-of-type { margin-left: 0; }
+  .capture-condition-grid { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }

@@ -1,6 +1,6 @@
 from .actuator import ActuationGate, MockActuator
 from .challenge import ChallengeService
-from .capture_pair import CapturePair, CapturePairValidationError, load_capture_pair
+from .capture_pair import CaptureConditions, CapturePair, CapturePairValidationError, load_capture_pair
 from .dataset_index import DatasetIndex, DatasetIndexError, build_dataset_index, write_dataset_index
 from .contracts import (
     AnalysisEvidence,
@@ -18,6 +18,7 @@ __all__ = [
     "ChallengeService",
     "ChallengeSession",
     "CapturePair",
+    "CaptureConditions",
     "CapturePairValidationError",
     "ControlRequest",
     "DemoAVSyncModelAdapter",

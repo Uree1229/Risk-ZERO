@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  CAPTURE_CONDITION_OPTIONS,
   CAPTURE_SCENARIOS,
   captureFileStem,
   createCaptureManifest,
   mediaFileExtension,
   type CaptureManifest,
+  type CaptureConditions,
   type CaptureScenarioId,
 } from "@/lib/capture-manifest";
 
@@ -24,6 +26,7 @@ interface RecordingContext {
   participantCode: string;
   scenario: CaptureScenarioId;
   challengePhrase: string;
+  conditions: CaptureConditions;
   startedAt: Date;
 }
 
@@ -49,6 +52,12 @@ export function CaptureLab() {
   const [challenge, setChallenge] = useState(challengePhrases[0]);
   const [participantCode, setParticipantCode] = useState("P01");
   const [scenario, setScenario] = useState<CaptureScenarioId>("bona-fide");
+  const [conditions, setConditions] = useState<CaptureConditions>({
+    distance: "standard",
+    lighting: "normal",
+    playbackDevice: "none",
+    noise: "quiet",
+  });
   const [result, setResult] = useState<CaptureResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [devicesActive, setDevicesActive] = useState(false);
@@ -123,6 +132,7 @@ export function CaptureLab() {
       participantCode: participantCode.trim(),
       scenario,
       challengePhrase: challenge,
+      conditions,
       startedAt: new Date(),
     };
     recorder.ondataavailable = (event) => {
@@ -136,6 +146,12 @@ export function CaptureLab() {
       if (!context) {
         setError("녹화 정보를 만들지 못했습니다. 다시 촬영해주세요.");
         setState("error");
+        return;
+      }
+      if (blob.size === 0) {
+        recordingContextRef.current = null;
+        setError("녹화 내용이 없습니다. 장치를 확인하고 다시 촬영해주세요.");
+        setState("ready");
         return;
       }
 
@@ -219,6 +235,32 @@ export function CaptureLab() {
                 {CAPTURE_SCENARIOS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
               </select>
             </label>
+            <div className="capture-condition-grid">
+              <label>
+                촬영 거리
+                <select value={conditions.distance} disabled={state === "recording"} onChange={(event) => setConditions((current) => ({ ...current, distance: event.target.value as CaptureConditions["distance"] }))}>
+                  {CAPTURE_CONDITION_OPTIONS.distance.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+                </select>
+              </label>
+              <label>
+                조명
+                <select value={conditions.lighting} disabled={state === "recording"} onChange={(event) => setConditions((current) => ({ ...current, lighting: event.target.value as CaptureConditions["lighting"] }))}>
+                  {CAPTURE_CONDITION_OPTIONS.lighting.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+                </select>
+              </label>
+              <label>
+                재생 장치
+                <select value={conditions.playbackDevice} disabled={state === "recording"} onChange={(event) => setConditions((current) => ({ ...current, playbackDevice: event.target.value as CaptureConditions["playbackDevice"] }))}>
+                  {CAPTURE_CONDITION_OPTIONS.playbackDevice.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+                </select>
+              </label>
+              <label>
+                주변 소음
+                <select value={conditions.noise} disabled={state === "recording"} onChange={(event) => setConditions((current) => ({ ...current, noise: event.target.value as CaptureConditions["noise"] }))}>
+                  {CAPTURE_CONDITION_OPTIONS.noise.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+                </select>
+              </label>
+            </div>
             <p>실명은 입력하지 않습니다. 같은 참여자는 같은 코드를 사용해주세요.</p>
           </aside>
 
@@ -240,6 +282,8 @@ export function CaptureLab() {
               <div><dt>상태</dt><dd>미평가</dd></div>
               <div><dt>참여자</dt><dd>{result.manifest.participantCode}</dd></div>
               <div><dt>유형</dt><dd>{CAPTURE_SCENARIOS.find((item) => item.id === result.manifest.scenario)?.label}</dd></div>
+              <div><dt>환경</dt><dd>{CAPTURE_CONDITION_OPTIONS.distance.find((item) => item.id === result.manifest.conditions.distance)?.label} · {CAPTURE_CONDITION_OPTIONS.lighting.find((item) => item.id === result.manifest.conditions.lighting)?.label}</dd></div>
+              <div><dt>재생·소음</dt><dd>{CAPTURE_CONDITION_OPTIONS.playbackDevice.find((item) => item.id === result.manifest.conditions.playbackDevice)?.label} · {CAPTURE_CONDITION_OPTIONS.noise.find((item) => item.id === result.manifest.conditions.noise)?.label}</dd></div>
               <div><dt>길이</dt><dd>{(result.manifest.capturedAt.durationMs / 1_000).toFixed(1)}초</dd></div>
               <div><dt>세션</dt><dd>{result.manifest.sessionId.slice(0, 12)}</dd></div>
             </dl>

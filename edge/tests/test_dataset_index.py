@@ -26,11 +26,17 @@ class DatasetIndexTests(unittest.TestCase):
         media.write_bytes(f"media-{stem}".encode())
         manifest = pair_root / f"{stem}.json"
         payload = {
-            "schemaVersion": "av-capture-manifest/1",
+            "schemaVersion": "av-capture-manifest/2",
             "sessionId": f"session-{stem}",
             "participantCode": participant,
             "scenario": scenario,
             "challengePhrase": "초록 우산 문 열어",
+            "conditions": {
+                "distance": "standard",
+                "lighting": "normal",
+                "playbackDevice": "none",
+                "noise": "quiet",
+            },
             "capturedAt": {
                 "started": f"2026-08-11T03:00:{started_second:02d}.000Z",
                 "ended": f"2026-08-11T03:00:{started_second + 4:02d}.000Z",
@@ -58,6 +64,7 @@ class DatasetIndexTests(unittest.TestCase):
         self.assertEqual(output["summary"]["participantCount"], 2)
         self.assertEqual(output["summary"]["scenarioCounts"]["av-delay"], 1)
         self.assertEqual(output["captures"][0]["manifestFile"], "P02/risk-zero_b.json")
+        self.assertEqual(output["captures"][0]["conditions"]["distance"], "standard")
 
     def test_records_invalid_pair_without_stopping(self) -> None:
         self.make_pair("P01", "risk-zero_good", "P01", "bona-fide")

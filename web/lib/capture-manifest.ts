@@ -1,4 +1,4 @@
-export const CAPTURE_MANIFEST_VERSION = "av-capture-manifest/1";
+export const CAPTURE_MANIFEST_VERSION = "av-capture-manifest/2";
 
 export const CAPTURE_SCENARIOS = [
   { id: "bona-fide", label: "정상 발화" },
@@ -11,12 +11,47 @@ export const CAPTURE_SCENARIOS = [
 
 export type CaptureScenarioId = (typeof CAPTURE_SCENARIOS)[number]["id"];
 
+export const CAPTURE_CONDITION_OPTIONS = {
+  distance: [
+    { id: "near", label: "약 0.5m" },
+    { id: "standard", label: "약 1m" },
+    { id: "far", label: "약 2m" },
+  ],
+  lighting: [
+    { id: "normal", label: "일반 조명" },
+    { id: "low-light", label: "저조도" },
+    { id: "backlight", label: "역광" },
+  ],
+  playbackDevice: [
+    { id: "none", label: "사용 안 함" },
+    { id: "phone", label: "스마트폰" },
+    { id: "speaker", label: "스피커" },
+    { id: "monitor", label: "모니터" },
+  ],
+  noise: [
+    { id: "quiet", label: "조용함" },
+    { id: "conversation", label: "주변 대화" },
+    { id: "music", label: "음악" },
+    { id: "outdoor", label: "실외 소음" },
+  ],
+} as const;
+
+type OptionId<T extends readonly { id: string }[]> = T[number]["id"];
+
+export interface CaptureConditions {
+  distance: OptionId<typeof CAPTURE_CONDITION_OPTIONS.distance>;
+  lighting: OptionId<typeof CAPTURE_CONDITION_OPTIONS.lighting>;
+  playbackDevice: OptionId<typeof CAPTURE_CONDITION_OPTIONS.playbackDevice>;
+  noise: OptionId<typeof CAPTURE_CONDITION_OPTIONS.noise>;
+}
+
 export interface CaptureManifest {
   schemaVersion: typeof CAPTURE_MANIFEST_VERSION;
   sessionId: string;
   participantCode: string;
   scenario: CaptureScenarioId;
   challengePhrase: string;
+  conditions: CaptureConditions;
   capturedAt: {
     started: string;
     ended: string;
@@ -36,6 +71,7 @@ interface CaptureManifestInput {
   participantCode: string;
   scenario: CaptureScenarioId;
   challengePhrase: string;
+  conditions: CaptureConditions;
   startedAt: Date;
   endedAt: Date;
   fileName: string;
@@ -53,8 +89,12 @@ export function createCaptureManifest(input: CaptureManifestInput): CaptureManif
   if (!challengePhrase) throw new Error("challengePhrase is required");
   if (!input.fileName.trim()) throw new Error("fileName is required");
   if (!input.mimeType.trim()) throw new Error("mimeType is required");
-  if (!Number.isFinite(input.sizeBytes) || input.sizeBytes < 0) throw new Error("sizeBytes must be non-negative");
+  if (!Number.isFinite(input.sizeBytes) || input.sizeBytes <= 0) throw new Error("sizeBytes must be positive");
   if (!Number.isFinite(durationMs) || durationMs < 0) throw new Error("endedAt must not be before startedAt");
+  for (const [key, options] of Object.entries(CAPTURE_CONDITION_OPTIONS)) {
+    const value = input.conditions[key as keyof CaptureConditions];
+    if (!options.some((option) => option.id === value)) throw new Error(`conditions.${key} is invalid`);
+  }
 
   return {
     schemaVersion: CAPTURE_MANIFEST_VERSION,
@@ -62,6 +102,7 @@ export function createCaptureManifest(input: CaptureManifestInput): CaptureManif
     participantCode,
     scenario: input.scenario,
     challengePhrase,
+    conditions: input.conditions,
     capturedAt: {
       started: input.startedAt.toISOString(),
       ended: input.endedAt.toISOString(),

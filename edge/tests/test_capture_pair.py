@@ -57,7 +57,35 @@ class CapturePairTests(unittest.TestCase):
         self.assertEqual(pair.session.video_path, self.media)
         self.assertIsNone(pair.session.audio_path)
         self.assertEqual(pair.scenario, "bona-fide")
+        self.assertEqual(pair.schema_version, "av-capture-manifest/1")
+        self.assertEqual(pair.conditions.distance, "unspecified")
         self.assertEqual(pair.to_dict()["verificationStatus"], "not_evaluated")
+
+    def test_loads_v2_environment_conditions(self) -> None:
+        self.payload["schemaVersion"] = "av-capture-manifest/2"
+        self.payload["conditions"] = {
+            "distance": "far",
+            "lighting": "low-light",
+            "playbackDevice": "phone",
+            "noise": "conversation",
+        }
+        self.write_manifest()
+        pair = load_capture_pair(self.manifest)
+
+        self.assertEqual(pair.schema_version, "av-capture-manifest/2")
+        self.assertEqual(pair.conditions.distance, "far")
+        self.assertEqual(pair.conditions.playback_device, "phone")
+        self.assertEqual(pair.to_dict()["conditions"]["noise"], "conversation")
+
+    def test_rejects_invalid_v2_environment_condition(self) -> None:
+        self.payload["schemaVersion"] = "av-capture-manifest/2"
+        self.payload["conditions"] = {
+            "distance": "far",
+            "lighting": "studio-perfect",
+            "playbackDevice": "phone",
+            "noise": "quiet",
+        }
+        self.assert_error_code("invalid_condition")
 
     def test_demo_adapter_runs_without_claiming_a_real_decision(self) -> None:
         pair = load_capture_pair(self.manifest)

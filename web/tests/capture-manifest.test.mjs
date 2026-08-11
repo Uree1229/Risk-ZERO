@@ -14,6 +14,12 @@ test("creates a local, unevaluated capture manifest", () => {
     participantCode: " P01 ",
     scenario: "audio-replay",
     challengePhrase: "초록 우산 문 열어",
+    conditions: {
+      distance: "standard",
+      lighting: "normal",
+      playbackDevice: "phone",
+      noise: "quiet",
+    },
     startedAt: new Date("2026-08-11T03:00:00.000Z"),
     endedAt: new Date("2026-08-11T03:00:04.250Z"),
     fileName: "capture.webm",
@@ -24,6 +30,12 @@ test("creates a local, unevaluated capture manifest", () => {
   assert.equal(manifest.schemaVersion, CAPTURE_MANIFEST_VERSION);
   assert.equal(manifest.participantCode, "P01");
   assert.equal(manifest.scenario, "audio-replay");
+  assert.deepEqual(manifest.conditions, {
+    distance: "standard",
+    lighting: "normal",
+    playbackDevice: "phone",
+    noise: "quiet",
+  });
   assert.equal(manifest.capturedAt.durationMs, 4250);
   assert.equal(manifest.source, "browser-local");
   assert.equal(manifest.verificationStatus, "not_evaluated");
@@ -42,6 +54,12 @@ test("rejects incomplete or invalid capture metadata", () => {
     participantCode: "P01",
     scenario: "bona-fide",
     challengePhrase: "초록 우산 문 열어",
+    conditions: {
+      distance: "standard",
+      lighting: "normal",
+      playbackDevice: "none",
+      noise: "quiet",
+    },
     startedAt: new Date("2026-08-11T03:00:04.000Z"),
     endedAt: new Date("2026-08-11T03:00:03.000Z"),
     fileName: "capture.webm",
@@ -52,4 +70,6 @@ test("rejects incomplete or invalid capture metadata", () => {
   assert.throws(() => createCaptureManifest(base), /endedAt/);
   assert.throws(() => createCaptureManifest({ ...base, endedAt: base.startedAt, participantCode: " " }), /participantCode/);
   assert.throws(() => createCaptureManifest({ ...base, endedAt: base.startedAt, sizeBytes: -1 }), /sizeBytes/);
+  assert.throws(() => createCaptureManifest({ ...base, endedAt: base.startedAt, sizeBytes: 0 }), /sizeBytes/);
+  assert.throws(() => createCaptureManifest({ ...base, endedAt: base.startedAt, conditions: { ...base.conditions, lighting: "invalid" } }), /conditions.lighting/);
 });
