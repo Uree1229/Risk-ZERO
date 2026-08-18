@@ -41,7 +41,7 @@
 | 항목 | 현재 상태 | 실제 연결에 필요한 것 |
 | --- | --- | --- |
 | ESP32-CAM 펌웨어 | 코드 작성 | PlatformIO 설치, 보드 업로드·연속 스트림 시험 |
-| FPGA 영상 처리 | RTL·MicroBlaze 소스 작성 | Vivado simulation·합성·timing과 실제 보드 시험 |
+| FPGA 영상 처리 | RTL·MicroBlaze 소스, A7-100T BRAM Block Design·build Tcl 작성 | Vivado simulation·합성·timing과 실제 보드 시험 |
 | 사람 분류 | 미구현·현재 범위 제외 | 필요하면 별도 AI 가속 보드 또는 작은 CNN 연구 |
 | 사람별 추적 | FPGA는 단일 움직임 중심점, Python은 중심점 거리 MVP | 교차·가림을 다룰 re-ID 추적기와 시험 데이터 |
 | 배송 행동 | 더미 시나리오 입력 | 택배 구역 체류 또는 물건 내려놓기 탐지 기준 |
@@ -68,7 +68,7 @@
 ## 테스트 기준
 
 - Edge 단위 테스트 41개 통과
-- FPGA 프로토콜·reference motion 테스트 6개 통과
+- FPGA 프로토콜·reference motion·Vivado asset 테스트 11개 통과
 - 모바일 TypeScript 검사와 단위 테스트
 - 모바일 SQLite v4의 18개 테이블 확인
 - 수집 manifest 생성·검증 단위 테스트 3개

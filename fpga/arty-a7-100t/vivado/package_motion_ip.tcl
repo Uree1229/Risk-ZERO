@@ -13,6 +13,19 @@ set_property name risk_zero_motion $core
 set_property display_name "RISK-ZERO Motion Accumulator" $core
 set_property description "160x120 GRAY8 frame difference and centroid accumulator" $core
 set_property version 1.0 $core
+set bus_interface [ipx::get_bus_interfaces s_axi -of_objects $core]
+if {[llength $bus_interface] == 0} {
+    error "AXI4-Lite interface inference failed for risk_zero_motion"
+}
+set memory_map [ipx::get_memory_maps s_axi -of_objects $core]
+if {[llength $memory_map] == 0} {
+    set memory_map [ipx::add_memory_map s_axi $core]
+    set address_block [ipx::add_address_block registers $memory_map]
+    set_property range 4096 $address_block
+    set_property width 32 $address_block
+    set_property usage register $address_block
+    set_property slave_memory_map_ref s_axi $bus_interface
+}
 ipx::create_xgui_files $core
 ipx::update_checksums $core
 ipx::save_core $core

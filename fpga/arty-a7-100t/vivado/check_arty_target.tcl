@@ -12,7 +12,6 @@ if {$actual_part ne $expected_part} {
 set required_ip_patterns [list \
     "xilinx.com:ip:microblaze:*" \
     "xilinx.com:ip:axi_ethernetlite:*" \
-    "xilinx.com:ip:mig_7series:*" \
     "xilinx.com:ip:proc_sys_reset:*"]
 
 foreach pattern $required_ip_patterns {
@@ -22,4 +21,4 @@ foreach pattern $required_ip_patterns {
 }
 
 puts "PASS: RISK-ZERO Vivado target is Arty A7-100T ($expected_part)."
-puts "CHECK MANUALLY: 100MHz board clock, 25MHz PHY reference clock, MII pins, PHY reset, DDR3L, and linker placement."
+puts "CHECK MANUALLY: 100MHz board clock, 25MHz PHY reference clock, MII pins, PHY reset, and linker placement."

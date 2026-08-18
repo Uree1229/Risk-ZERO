@@ -49,13 +49,13 @@ ESP32-CAM은 Wi-Fi, Arty A7은 Ethernet으로 같은 공유기에 연결한다. 
 | `firmware/esp32-cam` | JPEG→GRAY8 축소와 UDP 분할 전송 |
 | `fpga/arty-a7-100t/rtl` | motion core와 AXI4-Lite wrapper |
 | `fpga/arty-a7-100t/software` | UDP 재조립, FPGA 제어, 동선 상태, HTTP JSON |
-| `fpga/arty-a7-100t/vivado` | RTL 프로젝트와 IP packaging Tcl |
+| `fpga/arty-a7-100t/vivado` | RTL simulation, IP packaging, BRAM Block Design, 합성·timing·XSA Tcl |
 | `web/lib/fpga-motion.ts` | `fpga-motion/1` 검증과 웹 데이터 변환 |
 | `web/app/TrajectoryMonitor.tsx` | Arty IP 연결과 1초 polling |
 
 ## 검증 경계
 
-Python reference model로 UDP 순서 변경과 RTL 시험 벡터를 검사했다. 웹 production build와 타입·린트 검사는 완료했다. 현재 PC에 Vivado, Vitis, Icarus Verilog가 없으므로 다음 항목은 보드가 있는 개발 PC에서 확인해야 한다.
+Python reference model로 UDP 순서 변경과 RTL 시험 벡터를 검사했다. A7-100T용 256KB BRAM MicroBlaze Block Design과 합성·timing·XSA 생성 Tcl도 작성했다. 웹 production build와 타입·린트 검사는 완료했다. 현재 PC에 Vivado, Vitis, Icarus Verilog가 없으므로 다음 항목은 보드가 있는 개발 PC에서 확인해야 한다.
 
 - SystemVerilog simulation 성공
 - XC7A100T 합성과 timing closure

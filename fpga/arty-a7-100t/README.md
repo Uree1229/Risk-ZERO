@@ -38,7 +38,8 @@ ESP32-CAM과 Arty는 같은 공유기에 연결한다. ESP32-CAM은 Wi-Fi, Arty 
 - 시스템 입력 클럭: 100MHz
 - Ethernet PHY: DP83848J, MII, 10/100Mbps, PHY 주소 1
 - PHY 기준 클럭: 25MHz
-- 외부 메모리: 256MB DDR3L, MicroBlaze 코드·heap·stack·프레임 버퍼 배치
+- 보드 메모리: 256MB DDR3L 제공
+- 1차 bring-up: 256KB FPGA BRAM에 MicroBlaze 코드·heap·stack·프레임 버퍼 배치
 
 35T용 프로젝트를 그대로 열지 말고 위 part로 새 프로젝트를 만든다. Ethernet은 RMII나 Gigabit 설정이 아니라 MII 설정을 사용한다. Vivado block design에서는 AXI Ethernet Lite 또는 Digilent의 Arty MicroBlaze Ethernet 예제를 기준으로 연결하고, Master XDC에서 100MHz 입력과 MII·PHY reset·25MHz 기준 클럭 핀을 활성화한다.
 
@@ -54,18 +55,25 @@ ESP32-CAM과 Arty는 같은 공유기에 연결한다. ESP32-CAM은 Wi-Fi, Arty 
 3. 움직임 픽셀 4개, `sum_x=10`, `sum_y=6`, bbox `(2,1)-(3,2)` 확인
 4. 같은 전경 프레임을 다시 보내 정지한 전경 후보 4픽셀이 유지되는지 확인
 
-Vivado가 설치된 PC에서는 다음 Tcl로 프로젝트를 만든다.
+`sim/tb_risk_zero_motion_axi_lite.sv`는 AXI 주소가 먼저 오는 쓰기와 데이터가 먼저 오는 쓰기를 각각 검사한다. Vivado가 설치된 PC에서는 다음 순서로 RTL simulation, BRAM bring-up 프로젝트 생성, 합성·bitstream·XSA 생성을 진행한다.
 
 ```powershell
-vivado -mode batch -source vivado/create_rtl_project.tcl
-vivado -mode batch -source vivado/package_motion_ip.tcl
+vivado -mode batch -source fpga/arty-a7-100t/vivado/run_rtl_tests.tcl
+vivado -mode batch -source fpga/arty-a7-100t/vivado/create_arty_bram_system.tcl
+vivado -mode batch -source fpga/arty-a7-100t/vivado/build_arty_system.tcl
 ```
 
-전체 block design 프로젝트를 연 뒤 A7-100T part와 필요한 IP가 맞는지 확인한다.
+`create_arty_bram_system.tcl`은 motion IP를 패키징하고 다음 구성을 자동 생성한다. Digilent Arty A7-100 board files가 설치되어 있어야 한다.
 
-```tcl
-source vivado/check_arty_target.tcl
-```
+- Classic MicroBlaze 100MHz와 256KB local BRAM
+- AXI Ethernet Lite MII와 ping-pong buffer
+- AXI Timer, interrupt controller, USB UART 115200bps
+- `risk_zero_motion` AXI4-Lite IP
+- 25MHz Ethernet PHY 기준 클럭
+
+`build_arty_system.tcl`은 합성·구현 후 WNS가 음수면 실패 처리하고, 통과하면 `build/risk_zero_arty_a7_100t.xsa`를 생성한다.
+
+실제 케이블 연결부터 Vitis·UART·UDP 확인까지는 [보드 구동 순서](BOARD_BRINGUP.md)를 따른다.
 
 현재 작업 PC에는 Vivado와 RTL 시뮬레이터가 없으므로 실제 합성, timing, LUT·BRAM 사용량은 아직 확인하지 않았다. 같은 알고리즘과 UDP 규격을 검사하는 Python 테스트는 외부 패키지 없이 실행할 수 있다.
 
@@ -81,17 +89,16 @@ python fpga/arty-a7-100t/tools/fpga_status_emulator.py
 
 ## Vivado 블록 구성
 
-Digilent Arty A7-100T board files를 설치한 뒤 다음 블록을 구성한다.
+첫 보드 시험은 DDR3 오류를 분리하기 위해 다음 BRAM profile을 사용한다.
 
-1. MicroBlaze + 64KB local memory
-2. MIG 7 Series DDR3와 instruction/data cache
-3. AXI Ethernet Lite + interrupt controller + AXI timer
-4. AXI UART Lite
-5. Processor System Reset와 100MHz clock
-6. `vivado/package_motion_ip.tcl`로 만든 `risk_zero_motion` IP
-7. MicroBlaze AXI data bus에서 motion IP의 S_AXI 연결
+1. MicroBlaze + 256KB local memory
+2. AXI Ethernet Lite + interrupt controller + AXI timer
+3. AXI UART Lite
+4. Processor System Reset와 100MHz clock
+5. `risk_zero_motion` IP
+6. 25MHz PHY reference clock
 
-lwIP heap과 19,200-byte 프레임 버퍼를 위해 애플리케이션의 `.text`, `.data`, `.bss`, heap, stack은 DDR3로 배치한다. 연결 후 Vitis의 lwIP echo server 템플릿을 생성하고 `software/src` 파일을 추가한다.
+Vitis linker에서 `.text`, `.data`, `.bss`, heap, stack을 `microblaze_0_local_memory`에 배치하고 `software/src` 파일을 추가한다. 메모리가 부족하거나 5FPS 처리 여유가 부족할 때만 두 번째 단계에서 256MB DDR3L과 instruction/data cache를 추가한다.
 
 ## AXI4-Lite 레지스터
 
