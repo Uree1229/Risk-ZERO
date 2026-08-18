@@ -1,32 +1,32 @@
-# RISK-ZERO 시청각 발화 검증 MVP
+# RISK-ZERO 현관 동선·시청각 검증 MVP
 
-음성으로 도어락을 제어할 때, 현장 음성과 입술 움직임이 같은 사람의 같은 발화인지 확인하는 캡스톤 시제품입니다. 카메라와 마이크가 만든 후처리 수치와 영상만 소프트웨어로 전달하며, 원시 센서 분석은 하드웨어·모델 계층의 책임으로 둡니다.
+ESP32-CAM으로 현관 영상을 수집해 사람의 진입·체류·이탈 경로를 확인하고, 음성 도어락 제어 요청의 음성과 입술 움직임을 함께 검증하는 캡스톤 시제품입니다. 현재 개발 우선순위는 현관 동선 추적입니다.
 
 ## 현재 동작하는 범위
 
-- `edge/`: challenge 문구, PASS/BLOCK/INCONCLUSIVE 정책, nonce 재사용 차단, 3초 제어 게이트와 모형 액추에이터
-- `web/`: 4개 공격 시나리오 모니터, 카메라·마이크 동시 녹화 테스트, 검증 결과 API
+- `firmware/esp32-cam/`: QVGA JPEG 사진·MJPEG 스트림을 제공하는 AI Thinker ESP32-CAM 펌웨어
+- `edge/risk_zero_trajectory/`: 장치 확인, 사람별 중심점 추적, 동선 판정과 6개 DEMO
+- `edge/risk_zero_av/`: challenge 문구, PASS/BLOCK/INCONCLUSIVE 정책, nonce 재사용 차단, 제어 게이트
+- `web/`: 현관 동선 모니터, 기존 시청각 검증 모니터, 카메라·마이크 수집 시험
 - `mobile/`: 시청각 검증 홈, 캘린더·이벤트 상세, 영상 재생, SQLite v4 저장
 - `web/db/`, `web/drizzle/`: 웹 D1 검증 테이블과 마이그레이션
 - `docs/`: 주제 정의, 공격 시나리오, 데이터 계약, 정책, DB, 다이어그램
 
-현재 SyncNet·TalkNet·위조 음성 탐지 모델과 실제 BLE/Wi-Fi 장치는 연결하지 않았습니다. 화면의 네 시나리오는 정책과 데이터 흐름을 시험하는 결정론적 DEMO입니다. 실제 신원 확인이나 상용 도어락 제어 성능을 뜻하지 않습니다.
+현재 실제 사람 탐지 모델, SyncNet·TalkNet·위조 음성 탐지 모델은 연결하지 않았습니다. 화면 결과는 정책과 데이터 흐름을 시험하는 결정론적 DEMO이며 범죄 의도, 실제 신원 또는 상용 도어락 안전 성능을 뜻하지 않습니다.
 
 ## 처리 흐름
 
 ```text
-카메라 + 마이크
-  → 하드웨어/모델 계층이 사람·입술·음성·싱크 수치와 후처리 영상을 생성
-  → ModuleEvent 또는 검증 API
-  → PASS / BLOCK / INCONCLUSIVE
-  → PASS만 짧은 유효시간의 제어 토큰 생성
-  → 모바일 SQLite·웹 D1 기록 및 모니터링
+ESP32-CAM → 로컬 Wi-Fi 영상 → 노트북 사람 탐지 → 사람별 좌표열 → 동선 정책 → 웹 모니터
+
+카메라 + 마이크 → 시청각 분석 → PASS / BLOCK / INCONCLUSIVE → 모형 제어 게이트
 ```
 
 안전 기본값은 차단입니다. 입력 누락, 낮은 품질, 여러 얼굴, 시간 동기화 실패, 만료·재사용 요청은 문을 열지 않습니다.
 
 ## 주요 문서
 
+- [ESP32-CAM 현관 동선 추적 설계](docs/RISK-ZERO_ESP32-CAM_현관_동선_추적_설계_v0.1.md)
 - [주제 정의서](docs/RISK-ZERO_시청각_발화_검증_주제_정의서_v0.1.md)
 - [공격 시나리오와 판정 기준](docs/RISK-ZERO_시청각_검증_공격_시나리오_v0.1.md)
 - [데이터 계약](docs/RISK-ZERO_시청각_검증_데이터_계약_v0.1.md)
@@ -45,6 +45,7 @@
 | `POST`, `GET` | `/api/sensor-events` | 하드웨어 후처리 이벤트 저장·조회 |
 | `POST`, `GET` | `/api/verification-attempts` | 제어 요청·검증 근거·게이트 결과 저장·조회 |
 | `GET` | `/api/snapshot` | 웹·모바일 시연 스냅샷 |
+| `GET` | `/api/trajectory-snapshot` | 현관 동선 DEMO 스냅샷 |
 | `GET` | `/api/incidents` | 이전 사건 이력 호환 조회 |
 | `GET` | `/api/devices` | 장치 상태 조회 |
 
@@ -72,6 +73,8 @@ pnpm start
 Edge 정책 데모:
 
 ```powershell
+python -m edge.risk_zero_trajectory --scenario hidden-after-delivery
+python -m edge.risk_zero_trajectory --probe-camera http://ESP32-CAM-IP
 python -m edge.risk_zero_av --scenario live-pass
 python -m edge.risk_zero_av --scenario audio-replay
 python -m edge.risk_zero_av --scenario sync-mismatch

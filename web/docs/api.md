@@ -1,6 +1,6 @@
 # RISK-ZERO 데이터 API
 
-현재 API는 하드웨어·모델의 후처리 이벤트와 시청각 검증 결과를 Cloudflare D1에 저장하는 개발 경로다. 모바일 로컬 연동은 같은 필드의 `ModuleEvent`를 사용한다.
+현재 API는 하드웨어·모델의 후처리 이벤트와 시청각 검증 결과를 Cloudflare D1에 저장하는 개발 경로다. 현관 동선은 아직 DB에 저장하지 않고 읽기 전용 DEMO 스냅샷으로 제공한다. 모바일 로컬 연동은 같은 필드의 `ModuleEvent`를 사용한다.
 
 ## 시연 식별자
 
@@ -97,8 +97,11 @@
 | `GET` | `/api/verification-attempts?householdId=...&limit=50` | 최근 검증 결과 |
 | `GET` | `/api/sensor-events?householdId=...&limit=50` | 최근 후처리 이벤트 |
 | `GET` | `/api/snapshot?scenario=pass` | DEMO 스냅샷 |
+| `GET` | `/api/trajectory-snapshot?scenario=hidden-after-delivery` | ESP32-CAM 동선 DEMO 스냅샷 |
 | `GET` | `/api/devices?householdId=...` | 등록 장치 |
 | `GET` | `/api/incidents` | 이전 사건 모델 호환 조회 |
+
+동선 DEMO의 `scenario`는 `normal-delivery`, `hidden-after-delivery`, `quick-return`, `multiple-persons`, `long-dwell`, `tracking-lost` 중 하나다. 응답은 `trajectory-observation/1` 관찰값과 `trajectory-policy/0.1` 판정값을 함께 반환한다. 실제 ESP32-CAM 입력을 받는 POST API와 DB 저장은 사람 탐지기 연결 뒤 추가한다.
 
 ## 4. 오류
 

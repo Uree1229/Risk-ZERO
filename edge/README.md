@@ -1,6 +1,6 @@
-# RISK-ZERO Edge Verifier
+# RISK-ZERO Edge
 
-카메라·마이크 처리 계층과 문 모형 사이에 두는 시청각 검증 게이트의 기준 구현입니다. 현재 저장소에는 SyncNet·TalkNet 가중치와 실제 장치 드라이버가 없으므로, 정책·challenge·재전송 방지·fail-closed 동작을 결정론적 데모 증거로 검증합니다.
+ESP32-CAM 현관 동선 처리와 시청각 검증 게이트의 기준 구현입니다. 현재 저장소에는 실제 사람 탐지 모델과 SyncNet·TalkNet 가중치가 없으므로, 장치 연결 계약과 정책을 결정론적 데모 데이터로 검증합니다.
 
 ## 실행
 
@@ -9,8 +9,22 @@
 ```powershell
 python -m edge.risk_zero_av --scenario live-pass
 python -m edge.risk_zero_av --scenario audio-replay
+python -m edge.risk_zero_trajectory --scenario hidden-after-delivery
 python -m unittest discover -s edge/tests
 ```
+
+## ESP32-CAM 연결 확인
+
+`firmware/esp32-cam` 펌웨어를 올리고 시리얼 모니터에서 IP를 확인한 뒤 실행합니다.
+
+```powershell
+python -m edge.risk_zero_trajectory --probe-camera http://192.168.0.30
+python -m edge.risk_zero_trajectory --probe-camera http://192.168.0.30 --capture work/camera-test.jpg
+```
+
+`camera_client.py`는 장치 상태와 JPEG 입력만 담당합니다. `tracking.py`는 탐지기가 반환한 정규화 사람 상자를 ID와 좌표열로 바꿉니다. 실제 사람 탐지기는 아직 연결하지 않았으며, 나중에 노트북 모델이나 FPGA 전처리 출력으로 교체해도 `Detection` 계약은 그대로 유지합니다.
+
+동선 정책은 현재 정상 배송, 배송 후 사각지대 이동, 60초 이내 재접근, 인원 불일치, 45초 이상 체류, 추적 품질 부족을 다룹니다. 이 결과는 확인 우선순위이며 범죄 의도나 신원 판정이 아닙니다.
 
 ## 수집 파일 확인
 

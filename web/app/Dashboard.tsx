@@ -78,6 +78,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: SystemSnapshot
         </div>
         <div className="topbar-status">
           <span className="live-dot" aria-hidden="true" />
+          <button className="capture-link" type="button" onClick={() => { window.location.href = "/"; }}>동선 모니터</button>
           <button className="capture-link" type="button" onClick={() => { window.location.href = "/capture"; }}>입력 테스트</button>
           <span className="demo-chip">DEMO</span>
         </div>

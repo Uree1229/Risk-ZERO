@@ -1,7 +1,6 @@
-import { Dashboard } from "./Dashboard";
-import { buildDemoSnapshot } from "@/lib/demo-runtime";
+import { TrajectoryMonitor } from "./TrajectoryMonitor";
+import { buildTrajectorySnapshot } from "@/lib/trajectory-demo";
 
 export default async function Home() {
-  const initialSnapshot = await buildDemoSnapshot("normal");
-  return <Dashboard initialSnapshot={initialSnapshot} />;
+  return <TrajectoryMonitor initialSnapshot={await buildTrajectorySnapshot("normal-delivery")} />;
 }

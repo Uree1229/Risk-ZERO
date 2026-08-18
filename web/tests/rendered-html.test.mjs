@@ -15,7 +15,7 @@ async function render(path = "/") {
   );
 }
 
-test("server-renders the RISK-ZERO monitoring page", async () => {
+test("server-renders the RISK-ZERO trajectory monitoring page", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
@@ -23,11 +23,22 @@ test("server-renders the RISK-ZERO monitoring page", async () => {
   const html = await response.text();
   const visibleHtml = html.split('<script id="_R_">')[0];
   assert.match(visibleHtml, /RISK-ZERO/);
-  assert.match(visibleHtml, /제어 요청 검증/);
+  assert.match(visibleHtml, /방문 동선 확인/);
+  assert.match(visibleHtml, /배송 후 사각지대/);
+  assert.match(visibleHtml, /ESP32-CAM 연결 대기/);
   assert.match(visibleHtml, /DEMO/);
-  assert.match(visibleHtml, /최근 이벤트/);
+  assert.match(visibleHtml, /최근 동선 이벤트/);
   assert.doesNotMatch(visibleHtml, /SensorGateway|고정 더미 결과|교체 가능한 데이터 처리 흐름/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
+});
+
+test("keeps the audio-visual verification dashboard at /av", async () => {
+  const response = await render("/av");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  const visibleHtml = html.split('<script id="_R_">')[0];
+  assert.match(visibleHtml, /제어 요청 검증/);
+  assert.match(visibleHtml, /최근 이벤트/);
 });
 
 test("server-renders the local camera and microphone capture page", async () => {
@@ -62,6 +73,24 @@ test("exposes the normalized demo snapshot API", async () => {
   assert.equal(payload.verification.policyVersion, "av-policy/0.1");
   assert.equal(payload.gate.allowed, false);
   assert.equal(payload.sensorEvent.source.provider, "DemoAVEdgeGateway");
+});
+
+test("exposes the ESP32-CAM trajectory demo API", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("trajectory-api-test", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const response = await worker.fetch(
+    new Request("http://localhost/api/trajectory-snapshot?scenario=hidden-after-delivery"),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.mode, "demo");
+  assert.equal(payload.observation.deviceId, "ESP32-CAM-DEMO-01");
+  assert.equal(payload.assessment.decision, "alert");
+  assert.deepEqual(payload.assessment.reasonCodes, ["blind_zone_after_delivery"]);
+  assert.equal(payload.assessment.criminalIntentDetermined, false);
 });
 
 test("rejects an invalid sensor payload before database access", async () => {

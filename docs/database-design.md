@@ -1,6 +1,6 @@
 # RISK-ZERO 데이터베이스 설계
 
-- 기준일: 2026-08-11
+- 기준일: 2026-08-18
 - 모바일: SQLite v4, 18개 테이블
 - 웹: Cloudflare D1, 19개 테이블
 
@@ -9,6 +9,20 @@
 모바일 SQLite와 앱 전용 영상 폴더를 주 저장소로 사용한다. 현관 모듈은 전송 전 이벤트와 영상만 임시로 보관하고, 모바일이 저장한 뒤 ACK를 보내면 정리한다. 웹 D1은 API·대시보드 통합 시험용이며 필수 운영 서버가 아니다.
 
 영상 바이너리는 DB에 넣지 않는다. DB에는 앱 전용 `localUri`, 형식, 크기, 길이, 체크섬과 촬영시각만 저장한다.
+
+현관 동선 기능도 같은 원칙을 사용한다. ESP32-CAM 원본 스트림은 DB에 넣지 않고, 로컬 처리기가 만든 후처리 영상과 좌표·구역·판정 수치만 저장한다. 현재 동선 화면은 DEMO이며 아래 테이블은 다음 마이그레이션에서 추가할 설계다.
+
+## 현관 동선 추가 테이블 · 예정
+
+| 테이블 | 내용 |
+| --- | --- |
+| `trajectory_observations` | 장치·촬영시각·프레임 크기·진입/이탈/화면 인원·후처리 영상 ID |
+| `person_tracks` | 관찰별 임시 사람 ID·진입/마지막 시각·입구/출구 구역·체류·평균 신뢰도 |
+| `trajectory_points` | 트랙별 순서·상대시간·정규화 x/y·구역 |
+| `trajectory_assessments` | NORMAL/WATCH/ALERT/INCONCLUSIVE·이상 점수·정책 버전 |
+| `trajectory_reasons` | 판정의 reason code 목록 |
+
+좌표는 0부터 1 사이 실수로 저장해 ESP32-CAM 해상도가 바뀌어도 화면과 정책이 같은 계약을 사용한다. `trajectory_points`는 `(track_id, sequence)`를 고유 키로 두고, 관찰·트랙 삭제 시 하위 좌표와 판정을 함께 삭제한다.
 
 ## 시청각 검증 핵심 테이블
 
@@ -38,6 +52,11 @@ erDiagram
     VERIFICATION_ATTEMPTS ||--|| VERIFICATION_EVIDENCE : contains
     VERIFICATION_ATTEMPTS ||--o{ ACTUATION_LOGS : gates
     CONTROL_REQUESTS ||--o{ ACTUATION_LOGS : controls
+    SENSOR_EVENTS ||--o| TRAJECTORY_OBSERVATIONS : describes
+    TRAJECTORY_OBSERVATIONS ||--o{ PERSON_TRACKS : contains
+    PERSON_TRACKS ||--o{ TRAJECTORY_POINTS : samples
+    TRAJECTORY_OBSERVATIONS ||--o| TRAJECTORY_ASSESSMENTS : evaluated_by
+    TRAJECTORY_ASSESSMENTS ||--o{ TRAJECTORY_REASONS : explains
 ```
 
 ## 중복·재전송

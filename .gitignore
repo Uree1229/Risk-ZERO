@@ -11,3 +11,5 @@ __pycache__/
 *.py[cod]
 .env
 .env.local
+firmware/esp32-cam/include/config.h
+firmware/esp32-cam/.pio/

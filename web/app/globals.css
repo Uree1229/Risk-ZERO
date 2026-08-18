@@ -194,3 +194,55 @@ footer { display: flex; justify-content: flex-end; padding: 22px 2px 0; color: #
 }
 
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+
+.trajectory-shell { width: min(1440px, 100%); margin: 0 auto; padding: 0 34px 36px; }
+.trajectory-intro { display: grid; grid-template-columns: .8fr 1.2fr; align-items: end; gap: 36px; padding: 42px 0 24px; }
+.trajectory-intro h1 { margin: 9px 0 10px; font-size: clamp(36px, 4.8vw, 58px); letter-spacing: -.06em; }
+.trajectory-intro p:last-child { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.trajectory-overview { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, .55fr); gap: 18px; }
+.trajectory-map-card, .trajectory-assessment { border: 1px solid var(--line); border-radius: 20px; padding: 23px; background: linear-gradient(145deg, rgba(22,33,34,.97), rgba(13,21,22,.98)); }
+.trajectory-canvas { display: block; width: 100%; margin-top: 20px; border: 1px solid rgba(199,228,225,.1); border-radius: 14px; background: #070d0e; }
+.trajectory-legend { display: flex; gap: 15px; margin-top: 13px; color: var(--muted); font-size: 10px; }
+.trajectory-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.trajectory-legend i { width: 18px; height: 3px; border-radius: 999px; }
+.trajectory-assessment { display: grid; align-content: start; gap: 20px; }
+.trajectory-assessment > p { margin: 0; color: #d7dede; font-size: 14px; line-height: 1.7; }
+.trajectory-score { font-size: 42px; letter-spacing: -.06em; color: var(--normal); }
+.trajectory-assessment.level-watch .trajectory-score { color: var(--watch); }
+.trajectory-assessment.level-alert .trajectory-score { color: var(--critical); }
+.trajectory-assessment.level-inconclusive .trajectory-score { color: var(--muted); }
+.trajectory-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+.trajectory-metrics div { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.018); }
+.trajectory-metrics dt { color: var(--muted); font-size: 9px; }
+.trajectory-metrics dd { margin: 5px 0 0; font-size: 18px; font-weight: 800; }
+.trajectory-response { border-top: 1px solid var(--line); padding-top: 17px; }
+.trajectory-response > span { color: var(--mint); font-size: 9px; font-weight: 800; }
+.trajectory-response p { margin: 7px 0 12px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.trajectory-response div { display: flex; flex-wrap: wrap; gap: 7px; }
+.trajectory-response b { border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; color: #c8d2d2; font-size: 9px; }
+.trajectory-events { margin-top: 18px; }
+.trajectory-event-row { display: grid; grid-template-columns: .55fr 1fr 1.8fr .65fr; align-items: center; gap: 15px; min-height: 54px; padding: 10px 16px; border-top: 1px solid var(--line); color: #afbbbc; font-size: 11px; }
+.trajectory-event-row:first-child { border-top: 0; }
+.trajectory-event-header { min-height: 38px; color: #667577; background: rgba(255,255,255,.025); font-size: 9px; font-weight: 700; }
+.trajectory-event-row strong { color: var(--ink); }
+.trajectory-decision { justify-self: start; border-radius: 999px; padding: 5px 8px; font-size: 9px; font-weight: 800; }
+.decision-normal { color: var(--normal); background: rgba(114,216,178,.1); }
+.decision-watch { color: var(--watch); background: rgba(245,200,108,.1); }
+.decision-alert { color: var(--critical); background: rgba(255,108,115,.1); }
+.decision-inconclusive { color: var(--muted); background: rgba(143,157,160,.1); }
+
+@media (max-width: 1000px) {
+  .trajectory-shell { padding-inline: 20px; }
+  .trajectory-intro, .trajectory-overview { grid-template-columns: 1fr; }
+  .trajectory-intro { align-items: start; }
+  .trajectory-intro .scenario-controls { justify-items: start; }
+}
+
+@media (max-width: 640px) {
+  .trajectory-shell { padding-inline: 14px; }
+  .trajectory-intro h1 { font-size: 38px; }
+  .trajectory-map-card, .trajectory-assessment { padding: 17px; border-radius: 16px; }
+  .trajectory-event-header { display: none; }
+  .trajectory-event-row { grid-template-columns: 1fr auto; gap: 7px; border: 1px solid var(--line); border-radius: 11px; margin-bottom: 8px; }
+  .trajectory-event-row > span:nth-child(3) { grid-column: 1 / -1; }
+}

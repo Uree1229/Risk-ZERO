@@ -9,17 +9,17 @@ export async function generateMetadata(): Promise<Metadata> {
   const imageUrl = `${protocol}://${host}/og-av.png`;
 
   return {
-    title: "RISK-ZERO | 시청각 발화 검증",
-    description: "음성과 입술 움직임의 일치 여부를 확인하는 RISK-ZERO 모니터",
+    title: "RISK-ZERO | 현관 동선 모니터",
+    description: "현관 앞 사람의 진입·체류·이탈 경로와 이상행동을 확인하는 RISK-ZERO 모니터",
     openGraph: {
       title: "RISK-ZERO",
-      description: "도어락 음성 제어 요청의 시청각 검증 결과를 확인하세요.",
-      images: [{ url: imageUrl, width: 1536, height: 1024, alt: "RISK-ZERO 시청각 발화 검증 시스템" }],
+      description: "현관 앞 사람의 이동 경로와 확인이 필요한 상황을 살펴보세요.",
+      images: [{ url: imageUrl, width: 1536, height: 1024, alt: "RISK-ZERO 현관 동선 모니터" }],
     },
     twitter: {
       card: "summary_large_image",
       title: "RISK-ZERO",
-      description: "도어락 음성 제어 요청의 시청각 검증 결과를 확인하세요.",
+      description: "현관 앞 사람의 이동 경로와 확인이 필요한 상황을 살펴보세요.",
       images: [imageUrl],
     },
   };
