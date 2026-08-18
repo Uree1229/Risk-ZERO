@@ -103,6 +103,8 @@
 
 동선 DEMO의 `scenario`는 `normal-delivery`, `hidden-after-delivery`, `quick-return`, `multiple-persons`, `long-dwell`, `tracking-lost` 중 하나다. 응답은 `trajectory-observation/1` 관찰값과 `trajectory-policy/0.1` 판정값을 함께 반환한다. 실제 ESP32-CAM 입력을 받는 POST API와 DB 저장은 사람 탐지기 연결 뒤 추가한다.
 
+Arty A7 실장치 모드는 웹 API를 거치지 않고 로컬 브라우저가 `http://Arty-IP/trajectory`를 직접 조회한다. 응답 스키마는 `fpga-motion/1`이며 CORS `*`와 `no-store`를 사용한다. 이 경로는 같은 공유기의 HTTP 개발 화면에서만 사용하고 인터넷에 공개하지 않는다.
+
 ## 4. 오류
 
 ```json

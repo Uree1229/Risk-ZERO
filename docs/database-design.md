@@ -16,13 +16,16 @@
 
 | 테이블 | 내용 |
 | --- | --- |
-| `trajectory_observations` | 장치·촬영시각·프레임 크기·진입/이탈/화면 인원·후처리 영상 ID |
+| `trajectory_observations` | 장치·촬영시각·프레임 크기·진입/이탈/화면 인원·후처리 영상 ID·처리 소스 |
 | `person_tracks` | 관찰별 임시 사람 ID·진입/마지막 시각·입구/출구 구역·체류·평균 신뢰도 |
 | `trajectory_points` | 트랙별 순서·상대시간·정규화 x/y·구역 |
 | `trajectory_assessments` | NORMAL/WATCH/ALERT/INCONCLUSIVE·이상 점수·정책 버전 |
 | `trajectory_reasons` | 판정의 reason code 목록 |
+| `motion_frame_metrics` | FPGA frame ID·움직임 픽셀 수·중심점·bbox·배경 준비·손상 패킷 수 |
 
 좌표는 0부터 1 사이 실수로 저장해 ESP32-CAM 해상도가 바뀌어도 화면과 정책이 같은 계약을 사용한다. `trajectory_points`는 `(track_id, sequence)`를 고유 키로 두고, 관찰·트랙 삭제 시 하위 좌표와 판정을 함께 삭제한다.
+
+`motion_frame_metrics`는 Arty A7 시험용 진단값이다. 모든 5FPS 프레임을 영구 저장하지 않고 사건 전후의 표본이나 집계만 저장한다. 원본 GRAY8 UDP 프레임은 DB와 파일에 저장하지 않는다.
 
 ## 시청각 검증 핵심 테이블
 
@@ -57,6 +60,7 @@ erDiagram
     PERSON_TRACKS ||--o{ TRAJECTORY_POINTS : samples
     TRAJECTORY_OBSERVATIONS ||--o| TRAJECTORY_ASSESSMENTS : evaluated_by
     TRAJECTORY_ASSESSMENTS ||--o{ TRAJECTORY_REASONS : explains
+    TRAJECTORY_OBSERVATIONS ||--o{ MOTION_FRAME_METRICS : measures
 ```
 
 ## 중복·재전송

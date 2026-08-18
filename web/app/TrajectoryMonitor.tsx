@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PersonTrajectory, TrajectoryDecision, TrajectorySnapshot } from "@/lib/trajectory-domain";
 import { trajectoryScenarioOptions } from "@/lib/trajectory-demo";
+import { buildFpgaTrajectorySnapshot, parseFpgaMotionStatus } from "@/lib/fpga-motion";
 
 const decisionLabel: Record<TrajectoryDecision, string> = {
   normal: "정상 동선",
@@ -86,6 +87,8 @@ export function TrajectoryMonitor({ initialSnapshot }: { initialSnapshot: Trajec
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fpgaAddress, setFpgaAddress] = useState("192.168.0.40");
+  const [fpgaConnected, setFpgaConnected] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const loadScenario = useCallback(async (scenario: string) => {
@@ -95,12 +98,53 @@ export function TrajectoryMonitor({ initialSnapshot }: { initialSnapshot: Trajec
       const response = await fetch(`/api/trajectory-snapshot?scenario=${scenario}`, { cache: "no-store" });
       if (!response.ok) throw new Error("trajectory snapshot failed");
       setSnapshot((await response.json()) as TrajectorySnapshot);
+      setFpgaConnected(false);
     } catch {
       setError("동선 데이터를 불러오지 못했습니다.");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const loadFpga = useCallback(async (address: string) => {
+    const normalized = address.trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+    if (!normalized) throw new Error("Arty A7 IP를 입력하세요.");
+    if (window.location.protocol === "https:") {
+      throw new Error("FPGA 연결은 같은 네트워크의 HTTP 개발 화면에서 사용할 수 있습니다.");
+    }
+    const response = await fetch(`http://${normalized}/trajectory`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(2500),
+    });
+    if (!response.ok) throw new Error("Arty A7이 응답하지 않습니다.");
+    setSnapshot(buildFpgaTrajectorySnapshot(parseFpgaMotionStatus(await response.json())));
+    setFpgaAddress(normalized);
+  }, []);
+
+  const connectFpga = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await loadFpga(fpgaAddress);
+      setFpgaConnected(true);
+    } catch (reason) {
+      setFpgaConnected(false);
+      setError(reason instanceof Error ? reason.message : "Arty A7 연결에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }, [fpgaAddress, loadFpga]);
+
+  useEffect(() => {
+    if (!fpgaConnected) return;
+    const timer = window.setInterval(() => {
+      void loadFpga(fpgaAddress).catch(() => {
+        setFpgaConnected(false);
+        setError("Arty A7 연결이 끊겼습니다.");
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [fpgaAddress, fpgaConnected, loadFpga]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -121,9 +165,9 @@ export function TrajectoryMonitor({ initialSnapshot }: { initialSnapshot: Trajec
         </div>
         <div className="topbar-status">
           <span className="live-dot" aria-hidden="true" />
-          <span>ESP32-CAM 연결 대기</span>
+          <span>{fpgaConnected ? "Arty A7 연결됨" : "ESP32-CAM · Arty A7 연결 대기"}</span>
           <button className="capture-link" type="button" onClick={() => { window.location.href = "/av"; }}>시청각 검증</button>
-          <span className="demo-chip">DEMO</span>
+          <span className="demo-chip">{snapshot.mode === "fpga" ? "FPGA" : "DEMO"}</span>
         </div>
       </header>
 
@@ -138,11 +182,17 @@ export function TrajectoryMonitor({ initialSnapshot }: { initialSnapshot: Trajec
           </div>
         </div>
       </section>
+      <section className="fpga-connect-panel" aria-label="Arty A7 연결">
+        <div><span className="card-kicker">HARDWARE</span><strong>Arty A7-100T</strong><p>같은 공유기에 Ethernet으로 연결된 보드 IP를 입력합니다.</p></div>
+        <label><span>보드 IP</span><input value={fpgaAddress} onChange={(event) => setFpgaAddress(event.target.value)} placeholder="192.168.0.40" inputMode="decimal" /></label>
+        <button type="button" disabled={loading} onClick={() => void connectFpga()}>{fpgaConnected ? "다시 연결" : "FPGA 연결"}</button>
+        {fpgaConnected ? <button className="secondary-button" type="button" onClick={() => setFpgaConnected(false)}>연결 해제</button> : null}
+      </section>
       {error ? <div className="error-banner" role="alert">{error}</div> : null}
 
       <section className="trajectory-overview">
         <article className="trajectory-map-card">
-          <div className="card-heading"><div><span className="card-kicker">CAMERA VIEW</span><h2>사람별 이동 경로</h2></div><span className="source-chip">320 × 240</span></div>
+          <div className="card-heading"><div><span className="card-kicker">CAMERA VIEW</span><h2>사람별 이동 경로</h2></div><span className="source-chip">{snapshot.observation.frame.width} × {snapshot.observation.frame.height}</span></div>
           <canvas ref={canvasRef} className="trajectory-canvas" aria-label="현관 구역과 사람 이동 경로" />
           <div className="trajectory-legend">{snapshot.observation.tracks.map((track, index) => <span key={track.id}><i style={{ background: trackColors[index % trackColors.length] }} />{track.id}</span>)}</div>
         </article>
@@ -162,13 +212,13 @@ export function TrajectoryMonitor({ initialSnapshot }: { initialSnapshot: Trajec
       </section>
 
       <section className="event-section trajectory-events">
-        <div className="section-heading"><div><span className="card-kicker">EVENTS</span><h2>최근 동선 이벤트</h2></div><button className="secondary-button" onClick={() => void loadScenario(snapshot.scenarioId)}>새로고침</button></div>
+        <div className="section-heading"><div><span className="card-kicker">EVENTS</span><h2>최근 동선 이벤트</h2></div><button className="secondary-button" onClick={() => void (snapshot.mode === "fpga" ? connectFpga() : loadScenario(snapshot.scenarioId))}>새로고침</button></div>
         <div className="event-table" role="table" aria-label="최근 동선 이벤트">
           <div className="trajectory-event-row trajectory-event-header" role="row"><span>시간</span><span>상황</span><span>상세</span><span>판정</span></div>
           {snapshot.recentEvents.map((event) => <div className="trajectory-event-row" role="row" key={event.id}><span>{event.occurredAt}</span><strong>{event.title}</strong><span>{event.detail}</span><span className={`trajectory-decision decision-${event.decision}`}>{decisionLabel[event.decision]}</span></div>)}
         </div>
       </section>
-      <footer><span>DEMO · 실제 사람 검출 모델·ESP32-CAM 미연결</span></footer>
+      <footer><span>{snapshot.mode === "fpga" ? "FPGA · 움직임 후보 추적이며 사람 분류 결과가 아님" : "DEMO · 실제 사람 검출 모델·ESP32-CAM 미연결"}</span></footer>
     </main>
   );
 }

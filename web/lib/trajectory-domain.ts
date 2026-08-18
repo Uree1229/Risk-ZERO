@@ -39,7 +39,7 @@ export interface TrajectoryAssessment {
   reasonCodes: string[];
   reasons: string[];
   summary: string;
-  policyVersion: "trajectory-policy/0.1";
+  policyVersion: "trajectory-policy/0.1" | "fpga-motion-policy/0.1";
   evaluatedAt: string;
   isDemo: boolean;
   criminalIntentDetermined: false;
@@ -54,7 +54,7 @@ export interface TrajectoryEventItem {
 }
 
 export interface TrajectorySnapshot {
-  mode: "demo";
+  mode: "demo" | "fpga";
   scenarioId: string;
   scenarioLabel: string;
   generatedAt: string;

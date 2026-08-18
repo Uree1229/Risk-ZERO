@@ -25,7 +25,9 @@ test("server-renders the RISK-ZERO trajectory monitoring page", async () => {
   assert.match(visibleHtml, /RISK-ZERO/);
   assert.match(visibleHtml, /방문 동선 확인/);
   assert.match(visibleHtml, /배송 후 사각지대/);
-  assert.match(visibleHtml, /ESP32-CAM 연결 대기/);
+  assert.match(visibleHtml, /ESP32-CAM · Arty A7 연결 대기/);
+  assert.match(visibleHtml, /Arty A7-100T/);
+  assert.match(visibleHtml, /FPGA 연결/);
   assert.match(visibleHtml, /DEMO/);
   assert.match(visibleHtml, /최근 동선 이벤트/);
   assert.doesNotMatch(visibleHtml, /SensorGateway|고정 더미 결과|교체 가능한 데이터 처리 흐름/);

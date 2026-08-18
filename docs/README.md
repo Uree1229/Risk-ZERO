@@ -3,12 +3,13 @@
 ## 현재 주제 기준
 
 - [ESP32-CAM 현관 동선 추적 설계 v0.1](RISK-ZERO_ESP32-CAM_현관_동선_추적_설계_v0.1.md)
+- [Arty A7-100T FPGA 동선 처리 설계 v0.1](RISK-ZERO_Arty-A7_FPGA_동선_처리_설계_v0.1.md)
 - [시청각 발화 검증 시스템 주제 정의서 v0.1](RISK-ZERO_시청각_발화_검증_주제_정의서_v0.1.md)
 - [시청각 검증 공격 시나리오 v0.1](RISK-ZERO_시청각_검증_공격_시나리오_v0.1.md)
 - [시청각 검증 데이터 계약 v0.1](RISK-ZERO_시청각_검증_데이터_계약_v0.1.md)
 - [시청각 데이터 수집 가이드 v0.2](RISK-ZERO_시청각_데이터_수집_가이드_v0.1.md)
 
-2026-08-18부터 ESP32-CAM으로 현관 영상을 수집하고 노트북에서 사람별 동선을 추적하는 기능을 우선 구현한다. 음성 도어락 제어 요청의 시청각 발화 검증은 `/av`와 관련 문서에 유지한다. 제안서·개발계획·기존 Use Case는 변경 이력으로 보관한다.
+2026-08-18부터 ESP32-CAM으로 현관 영상을 수집하고 Arty A7-100T에서 움직임 중심점과 동선을 처리하는 기능을 우선 구현한다. 음성 도어락 제어 요청의 시청각 발화 검증은 `/av`와 관련 문서에 유지한다. 제안서·개발계획·기존 Use Case는 변경 이력으로 보관한다.
 
 ## 기획·발표 자료
 
@@ -20,7 +21,7 @@
 - [현재 구현 현황 — 2026-08-18](implementation-status.md)
 - [데이터베이스 설계](database-design.md)
 - [모듈 이벤트 버퍼·모바일 동기화](module-sync.md)
-- [RISK-ZERO 운영·개인정보·제어 정책 v0.4](RISK-ZERO_Policy_Document_초안_v0.2.md)
+- [RISK-ZERO 운영·개인정보·제어 정책 v0.5](RISK-ZERO_Policy_Document_초안_v0.2.md)
 - [RISK-ZERO 시청각 검증 판정 및 평가 방안 v0.3](RISK-ZERO_위험도_산정_및_검증_방안_초안_v0.1.md)
 - [소프트웨어 다이어그램](Diagram/README.md)
 - [모바일 앱 화면](Screenshots/README.md)

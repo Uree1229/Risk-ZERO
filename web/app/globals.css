@@ -199,6 +199,14 @@ footer { display: flex; justify-content: flex-end; padding: 22px 2px 0; color: #
 .trajectory-intro { display: grid; grid-template-columns: .8fr 1.2fr; align-items: end; gap: 36px; padding: 42px 0 24px; }
 .trajectory-intro h1 { margin: 9px 0 10px; font-size: clamp(36px, 4.8vw, 58px); letter-spacing: -.06em; }
 .trajectory-intro p:last-child { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.fpga-connect-panel { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(220px, 300px) auto auto; gap: 12px; align-items: end; border: 1px solid var(--line); background: rgba(13,26,25,.7); border-radius: 18px; padding: 18px 20px; margin-bottom: 18px; }
+.fpga-connect-panel strong { display: block; font-size: 18px; margin: 4px 0; }
+.fpga-connect-panel p { color: var(--muted); font-size: 11px; margin: 0; }
+.fpga-connect-panel label { display: grid; gap: 7px; }
+.fpga-connect-panel label span { color: var(--muted); font-size: 10px; }
+.fpga-connect-panel input { width: 100%; border: 1px solid var(--line); background: #07100f; color: var(--ink); border-radius: 10px; padding: 11px 13px; }
+.fpga-connect-panel > button { border: 1px solid var(--mint); background: var(--mint); color: #07110e; border-radius: 10px; padding: 11px 15px; font-weight: 800; }
+.fpga-connect-panel > button.secondary-button { background: transparent; color: var(--ink); border-color: var(--line); }
 .trajectory-overview { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, .55fr); gap: 18px; }
 .trajectory-map-card, .trajectory-assessment { border: 1px solid var(--line); border-radius: 20px; padding: 23px; background: linear-gradient(145deg, rgba(22,33,34,.97), rgba(13,21,22,.98)); }
 .trajectory-canvas { display: block; width: 100%; margin-top: 20px; border: 1px solid rgba(199,228,225,.1); border-radius: 14px; background: #070d0e; }
@@ -236,6 +244,8 @@ footer { display: flex; justify-content: flex-end; padding: 22px 2px 0; color: #
   .trajectory-intro, .trajectory-overview { grid-template-columns: 1fr; }
   .trajectory-intro { align-items: start; }
   .trajectory-intro .scenario-controls { justify-items: start; }
+  .fpga-connect-panel { grid-template-columns: 1fr 1fr; }
+  .fpga-connect-panel > div { grid-column: 1 / -1; }
 }
 
 @media (max-width: 640px) {
@@ -245,4 +255,6 @@ footer { display: flex; justify-content: flex-end; padding: 22px 2px 0; color: #
   .trajectory-event-header { display: none; }
   .trajectory-event-row { grid-template-columns: 1fr auto; gap: 7px; border: 1px solid var(--line); border-radius: 11px; margin-bottom: 8px; }
   .trajectory-event-row > span:nth-child(3) { grid-column: 1 / -1; }
+  .fpga-connect-panel { grid-template-columns: 1fr; }
+  .fpga-connect-panel > div { grid-column: auto; }
 }

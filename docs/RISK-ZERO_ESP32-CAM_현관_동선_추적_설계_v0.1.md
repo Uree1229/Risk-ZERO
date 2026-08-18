@@ -12,22 +12,22 @@
 
 ## 2. 고정한 구조
 
-ESP32-CAM은 바꾸지 않는다. 장치의 제한된 메모리와 연산량을 고려해 JPEG 수집과 로컬 Wi-Fi 전송만 담당한다. 사람 탐지, ID 유지, 동선 계산과 정책 판정은 실험용 노트북에서 수행한다.
+ESP32-CAM은 바꾸지 않는다. 기존 JPEG 촬영·웹 스트림을 유지하면서 FPGA용 160×120 흑백 프레임을 추가 전송한다. 움직임 중심점과 동선 계산은 Arty A7-100T의 RTL과 MicroBlaze가 담당한다. 자세한 FPGA 구조는 [Arty A7 동선 처리 설계](RISK-ZERO_Arty-A7_FPGA_동선_처리_설계_v0.1.md)를 기준으로 한다.
 
 ```mermaid
 flowchart LR
     Camera["ESP32-CAM<br/>QVGA JPEG 수집"]
-    Stream["로컬 Wi-Fi<br/>/capture · /stream"]
-    Detector["사람 탐지기<br/>추후 모델 연결"]
-    Tracker["CentroidTracker<br/>사람 ID · 좌표열"]
-    Policy["TrajectoryPolicy<br/>규칙 기반 판정"]
-    API["Trajectory API"]
+    WebStream["JPEG<br/>/capture · /stream"]
+    Gray["160×120 GRAY8<br/>RZFP UDP"]
+    FPGA["Arty A7-100T<br/>frame difference"]
+    Status["MicroBlaze<br/>동선 HTTP JSON"]
     Monitor["웹 동선 모니터"]
 
-    Camera --> Stream --> Detector --> Tracker --> Policy --> API --> Monitor
+    Camera --> WebStream
+    Camera --> Gray --> FPGA --> Status --> Monitor
 ```
 
-FPGA는 MVP 필수 부품으로 넣지 않는다. 나중에 처리 속도가 실제 문제로 확인되면 사람 탐지나 영상 전처리만 FPGA로 옮기고, FPGA 출력은 현재 `Detection` 좌표 계약에 맞춘다. 따라서 웹·정책 코드는 바꾸지 않아도 된다.
+Arty A7은 ARM이 없는 순수 FPGA이므로 YOLO 사람 분류 대신 고정 카메라의 움직임 후보를 처리한다. 웹은 DEMO와 FPGA 실장치 응답을 같은 동선 화면 계약으로 표시한다.
 
 ## 3. 구현 상태
 
@@ -35,7 +35,9 @@ FPGA는 MVP 필수 부품으로 넣지 않는다. 나중에 처리 속도가 실
 | --- | --- | --- |
 | ESP32-CAM 펌웨어 | 코드 완료, 보드 시험 전 | `/health`, `/capture`, `:81/stream` |
 | 장치 연결 확인 | 완료 | Python으로 상태 조회와 JPEG 한 장 저장 |
-| 사람 탐지 | 미연결 | 실제 모델 또는 FPGA 출력 어댑터 필요 |
+| FPGA용 영상 | 코드 완료, 보드 시험 전 | 160×120 GRAY8, UDP 5005, 16 chunks |
+| FPGA 움직임 처리 | RTL·MicroBlaze 코드 완료 | 선택 갱신 배경 차분·중심점·bbox, 합성 전 |
+| 사람 분류 | 범위 제외 | 움직임 후보를 사람으로 단정하지 않음 |
 | 사람별 ID·좌표열 | MVP 완료 | 중심점 거리 기반 추적, 가림·교차 re-ID는 미지원 |
 | 동선 정책 | MVP 완료 | 정상 배송, 사각지대, 재접근, 인원 불일치, 장기 체류, 추적 불가 |
 | 웹 모니터 | DEMO 완료 | 6개 상황 전환, 동선 지도, 점수·사유·대응 표시 |
@@ -86,7 +88,7 @@ FPGA는 MVP 필수 부품으로 넣지 않는다. 나중에 처리 속도가 실
 | 45초 이상 체류 | 경계 | `long_dwell` |
 | 신뢰도 0.45 미만, 좌표 부족·오류 | 판단 불가 | `tracking_confidence_low` 등 |
 
-임계값은 아직 실험용이다. 사람 탐지기가 연결된 뒤 정상 배송과 비정상 동선 표본을 모아 조정한다.
+임계값은 아직 실험용이다. Arty 보드가 연결된 뒤 조명 변화와 정상 이동 표본을 모아 움직임 threshold와 최소 픽셀 수를 조정한다.
 
 ## 7. 실행
 
@@ -104,13 +106,13 @@ python -m edge.risk_zero_trajectory --scenario hidden-after-delivery
 
 1. ESP32-CAM 한 대에 펌웨어를 올려 30분 연속 스트리밍과 프레임 손실을 확인한다.
 2. 카메라 설치 높이·각도를 고정하고 웹 지도 구역 좌표를 실제 현관 화면에 맞춘다.
-3. 노트북에서 동작할 사람 탐지 모델 한 개를 선정해 `Detection` 계약에 연결한다.
-4. 정상 배송, 배송 후 우측 이동, 빠른 재접근, 두 사람 교차 영상을 각 10회 촬영한다.
-5. ID 전환 수, 누락률, 이벤트 정탐·오탐을 표로 기록하고 임계값을 조정한다.
-6. 후처리된 영상과 동선 이벤트만 DB에 저장하고 보존기간·삭제 기능을 연결한다.
+3. Vivado에서 Arty motion IP를 합성하고 MicroBlaze lwIP 프로젝트를 빌드한다.
+4. ESP32-CAM의 RZFP UDP를 활성화해 Arty에서 완전한 프레임 수신을 확인한다.
+5. 정상 이동, 조명 변화, 카메라 흔들림, 두 사람 동시 이동을 각 10회 촬영한다.
+6. 손실률, 움직임 오탐과 중심점 오차를 기록하고 threshold를 조정한다.
+7. 후처리된 영상과 동선 이벤트만 DB에 저장하고 보존기간·삭제 기능을 연결한다.
 
 ## 9. 참고
 
 - [Espressif esp32-camera 드라이버](https://github.com/espressif/esp32-camera): JPEG와 PSRAM 사용 조건, 프레임 버퍼 설정
 - [Espressif ESP-WHO](https://github.com/espressif/esp-who): 현재 공식 AI 예제의 지원 보드 범위 확인
-

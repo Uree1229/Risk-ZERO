@@ -1,10 +1,11 @@
 # RISK-ZERO 현관 동선·시청각 검증 MVP
 
-ESP32-CAM으로 현관 영상을 수집해 사람의 진입·체류·이탈 경로를 확인하고, 음성 도어락 제어 요청의 음성과 입술 움직임을 함께 검증하는 캡스톤 시제품입니다. 현재 개발 우선순위는 현관 동선 추적입니다.
+ESP32-CAM으로 현관 영상을 수집하고 Arty A7-100T에서 움직임 중심점과 동선을 계산해 진입·체류·이탈 경로를 확인하는 캡스톤 시제품입니다. 음성 도어락의 시청각 검증 기능도 별도 MVP로 유지합니다.
 
 ## 현재 동작하는 범위
 
 - `firmware/esp32-cam/`: QVGA JPEG 사진·MJPEG 스트림을 제공하는 AI Thinker ESP32-CAM 펌웨어
+- `fpga/arty-a7-100t/`: GRAY8 UDP 수신, 배경 차분 RTL, MicroBlaze 동선·HTTP 출력
 - `edge/risk_zero_trajectory/`: 장치 확인, 사람별 중심점 추적, 동선 판정과 6개 DEMO
 - `edge/risk_zero_av/`: challenge 문구, PASS/BLOCK/INCONCLUSIVE 정책, nonce 재사용 차단, 제어 게이트
 - `web/`: 현관 동선 모니터, 기존 시청각 검증 모니터, 카메라·마이크 수집 시험
@@ -17,7 +18,7 @@ ESP32-CAM으로 현관 영상을 수집해 사람의 진입·체류·이탈 경�
 ## 처리 흐름
 
 ```text
-ESP32-CAM → 로컬 Wi-Fi 영상 → 노트북 사람 탐지 → 사람별 좌표열 → 동선 정책 → 웹 모니터
+ESP32-CAM → RZFP UDP → Arty MicroBlaze → FPGA 배경 차분·중심점 → HTTP JSON → 웹 모니터
 
 카메라 + 마이크 → 시청각 분석 → PASS / BLOCK / INCONCLUSIVE → 모형 제어 게이트
 ```
@@ -27,6 +28,7 @@ ESP32-CAM → 로컬 Wi-Fi 영상 → 노트북 사람 탐지 → 사람별 좌�
 ## 주요 문서
 
 - [ESP32-CAM 현관 동선 추적 설계](docs/RISK-ZERO_ESP32-CAM_현관_동선_추적_설계_v0.1.md)
+- [Arty A7-100T FPGA 동선 처리 설계](docs/RISK-ZERO_Arty-A7_FPGA_동선_처리_설계_v0.1.md)
 - [주제 정의서](docs/RISK-ZERO_시청각_발화_검증_주제_정의서_v0.1.md)
 - [공격 시나리오와 판정 기준](docs/RISK-ZERO_시청각_검증_공격_시나리오_v0.1.md)
 - [데이터 계약](docs/RISK-ZERO_시청각_검증_데이터_계약_v0.1.md)

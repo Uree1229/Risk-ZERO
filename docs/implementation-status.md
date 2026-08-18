@@ -11,6 +11,10 @@
 | --- | --- |
 | ESP32-CAM | QVGA JPEG `/capture`, MJPEG `:81/stream`, 상태 `/health` 펌웨어 소스 |
 | 카메라 연결 도구 | 장치 상태 조회와 JPEG 한 장 저장 CLI |
+| FPGA 전송 | ESP32 QVGA JPEG를 160×120 GRAY8로 축소해 RZFP UDP 전송 |
+| FPGA RTL | 선택 갱신 배경 차이, threshold, 픽셀 수·좌표 합·bbox와 AXI4-Lite |
+| MicroBlaze | lwIP UDP 재조립, FPGA 제어, 중심점·구역·체류, HTTP JSON |
+| FPGA 웹 연결 | Arty IP 저장, 1초 polling, `fpga-motion/1` 검증·표시 |
 | 동선 데이터 계약 | `trajectory-observation/1` 관찰값과 `trajectory-policy/0.1` 판정값 |
 | 사람별 추적 | 탐지 상자의 중심점 거리로 ID와 구역별 좌표열 생성 |
 | 동선 정책 | 정상 배송·사각지대 이동·60초 내 재접근·인원 불일치·45초 체류·추적 불가 |
@@ -37,8 +41,9 @@
 | 항목 | 현재 상태 | 실제 연결에 필요한 것 |
 | --- | --- | --- |
 | ESP32-CAM 펌웨어 | 코드 작성 | PlatformIO 설치, 보드 업로드·연속 스트림 시험 |
-| 사람 탐지 | 인터페이스만 구현 | 노트북 탐지 모델과 현관 영상 검증 |
-| 사람별 추적 | 중심점 거리 MVP | 교차·가림을 다룰 re-ID 추적기와 시험 데이터 |
+| FPGA 영상 처리 | RTL·MicroBlaze 소스 작성 | Vivado simulation·합성·timing과 실제 보드 시험 |
+| 사람 분류 | 미구현·현재 범위 제외 | 필요하면 별도 AI 가속 보드 또는 작은 CNN 연구 |
+| 사람별 추적 | FPGA는 단일 움직임 중심점, Python은 중심점 거리 MVP | 교차·가림을 다룰 re-ID 추적기와 시험 데이터 |
 | 배송 행동 | 더미 시나리오 입력 | 택배 구역 체류 또는 물건 내려놓기 탐지 기준 |
 | 동선 판정 | 규칙과 임계값 구현 | 실제 영상으로 오탐·누락 측정 후 기준 조정 |
 | AV 싱크 | 결정론적 수치 입력 | SyncNet 계열 모델 어댑터와 검증 데이터 |
@@ -54,20 +59,22 @@
 
 1. ESP32-CAM에 펌웨어를 올리고 같은 Wi-Fi에서 30분 스트림을 시험한다.
 2. 실제 설치 위치의 현관·택배·사각지대 구역 좌표를 정한다.
-3. 노트북 사람 탐지 모델을 `Detection` 계약에 연결한다.
-4. 정상 배송·사각지대·재접근·2인 교차 영상을 각 10회 수집한다.
-5. ID 변경, 프레임 누락, 이벤트 정탐·오탐을 측정하고 임계값을 조정한다.
-6. 후처리 영상과 동선 이벤트를 기존 DB에 저장하고 모바일 상세 화면에 연결한다.
-7. 시청각 검증 모델 연결과 문 모형 시험은 동선 MVP 이후 이어간다.
+3. Vivado에서 motion RTL simulation, 합성과 timing을 확인한다.
+4. MicroBlaze lwIP와 HTTP 상태 출력을 보드에서 실행한다.
+5. ESP32→Arty UDP 손실률과 실제 움직임 중심점 오차를 측정한다.
+6. 정상 이동·조명 변화·카메라 흔들림·2인 동시 이동을 각 10회 수집한다.
+7. 후처리 영상과 동선 이벤트를 기존 DB에 저장하고 모바일 상세 화면에 연결한다.
 
 ## 테스트 기준
 
 - Edge 단위 테스트 41개 통과
+- FPGA 프로토콜·reference motion 테스트 6개 통과
 - 모바일 TypeScript 검사와 단위 테스트
 - 모바일 SQLite v4의 18개 테이블 확인
 - 수집 manifest 생성·검증 단위 테스트 3개
 - 웹 production build, 렌더·API 테스트 11개와 lint 통과
 - ESP32-CAM 펌웨어는 이 PC에 PlatformIO가 없어 보드 빌드·업로드 미검증
+- Arty RTL·MicroBlaze는 이 PC에 Vivado/Vitis/RTL simulator가 없어 합성·보드 실행 미검증
 - 실제 모델 정확도는 아직 측정하지 않음
 
 이번 변경에서는 영상·메타데이터를 서버나 DB로 전송하지 않으며 APK도 빌드하거나 배포하지 않는다. 웹 동선은 DEMO이고 실제 ESP32-CAM·탐지 모델 미연결 상태를 화면에 표시한다.
