@@ -27,6 +27,7 @@ ESP32-CAM → RZFP UDP → Arty MicroBlaze → FPGA 배경 차분·중심점 →
 
 ## 주요 문서
 
+- [새 PC·Codex 인수인계](docs/CODEX_HANDOFF.md)
 - [ESP32-CAM 현관 동선 추적 설계](docs/RISK-ZERO_ESP32-CAM_현관_동선_추적_설계_v0.1.md)
 - [Arty A7-100T FPGA 동선 처리 설계](docs/RISK-ZERO_Arty-A7_FPGA_동선_처리_설계_v0.1.md)
 - [주제 정의서](docs/RISK-ZERO_시청각_발화_검증_주제_정의서_v0.1.md)

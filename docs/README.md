@@ -2,6 +2,7 @@
 
 ## 현재 주제 기준
 
+- [새 PC·Codex 인수인계 — 2026-08-25](CODEX_HANDOFF.md)
 - [ESP32-CAM 현관 동선 추적 설계 v0.1](RISK-ZERO_ESP32-CAM_현관_동선_추적_설계_v0.1.md)
 - [Arty A7-100T FPGA 동선 처리 설계 v0.1](RISK-ZERO_Arty-A7_FPGA_동선_처리_설계_v0.1.md)
 - [시청각 발화 검증 시스템 주제 정의서 v0.1](RISK-ZERO_시청각_발화_검증_주제_정의서_v0.1.md)
@@ -18,7 +19,7 @@
 
 ## 설계·정책 문서
 
-- [현재 구현 현황 — 2026-08-18](implementation-status.md)
+- [현재 구현 현황](implementation-status.md)
 - [데이터베이스 설계](database-design.md)
 - [모듈 이벤트 버퍼·모바일 동기화](module-sync.md)
 - [RISK-ZERO 운영·개인정보·제어 정책 v0.5](RISK-ZERO_Policy_Document_초안_v0.2.md)

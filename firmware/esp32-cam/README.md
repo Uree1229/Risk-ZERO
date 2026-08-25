@@ -1,6 +1,6 @@
 # ESP32-CAM 영상 수집기
 
-AI Thinker ESP32-CAM에서 JPEG 사진과 MJPEG 영상을 로컬 Wi-Fi로 제공하는 수집 펌웨어다. 사람 탐지나 위험 판단은 ESP32-CAM에서 하지 않고 노트북의 동선 처리 계층이 담당한다.
+AI Thinker ESP32-CAM에서 JPEG 사진과 MJPEG 영상을 로컬 Wi-Fi로 제공하고, 저해상도 흑백 프레임을 Arty A7-100T로 보내는 수집 펌웨어다. 사람 후보의 동선 수치 처리는 ESP32-CAM이나 웹·모바일이 아니라 Arty의 MicroBlaze와 motion RTL이 담당한다.
 
 ## 준비
 
