@@ -5,6 +5,7 @@
 - [새 PC·Codex 인수인계 — 2026-08-25](CODEX_HANDOFF.md)
 - [ESP32-CAM 현관 동선 추적 설계 v0.1](RISK-ZERO_ESP32-CAM_현관_동선_추적_설계_v0.1.md)
 - [Arty A7-100T FPGA 동선 처리 설계 v0.1](RISK-ZERO_Arty-A7_FPGA_동선_처리_설계_v0.1.md)
+- [FPGA Default-deny Safety Gate FSM 설계 v0.1](RISK-ZERO_FPGA_Safety_Gate_FSM_설계_v0.1.md)
 - [시청각 발화 검증 시스템 주제 정의서 v0.1](RISK-ZERO_시청각_발화_검증_주제_정의서_v0.1.md)
 - [시청각 검증 공격 시나리오 v0.1](RISK-ZERO_시청각_검증_공격_시나리오_v0.1.md)
 - [시청각 검증 데이터 계약 v0.1](RISK-ZERO_시청각_검증_데이터_계약_v0.1.md)

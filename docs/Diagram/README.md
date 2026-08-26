@@ -14,5 +14,6 @@ ESP32-CAM과 FPGA 처리 흐름은 [현관 동선 추적 설계](../RISK-ZERO_ES
 | [Capture and Verification Sequence](05-sensor-ingest-sequence.md) | 발화부터 모형 제어까지 |
 | [Module Sync Sequence](06-snapshot-sequence.md) | 영상·검증 저장과 ACK |
 | [Deployment Diagram](07-deployment-diagram.md) | 현관 모듈·모바일·개발 웹 배치 |
+| [FPGA Safety Gate FSM](08-fpga-safety-gate-fsm.md) | 기본 차단 개방 허가·오류 래치 상태 전이 |
 
 각 문서는 PNG와 Mermaid 원본을 함께 둔다. 점선은 실제 모델, BLE/Wi-Fi 또는 개발용 대체 경로처럼 연결이 남은 경계다.

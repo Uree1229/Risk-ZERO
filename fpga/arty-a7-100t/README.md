@@ -120,6 +120,20 @@ BRAM XSA로 크기를 측정한 결과 lwIP 애플리케이션이 256KB를 107,8
 
 MicroBlaze가 `sum_x / motion_count`, `sum_y / motion_count`를 계산한다. 19,200번의 AXI pixel write가 필요하며 5FPS에서는 초당 96,000번이다. 실제 보드에서 여유가 부족하면 다음 단계에서 AXI DMA/Stream 구조로 교체한다.
 
+## Default-deny Safety Gate FSM
+
+`rtl/risk_zero_safety_gate_fsm.sv`는 실제 액추에이터 앞단에서 개방 요청을 제한한다. FPGA가 ESP32의 인증 자체를 검증하는 구조는 아니며, 전달된 신호의 누락·모순·만료·재사용·통신 단절을 독립적으로 차단한다.
+
+| 상태 | 의미 | `unlock_enable` |
+| --- | --- | --- |
+| `BOOT` | heartbeat와 닫힌 문 상태를 기다림 | 0 |
+| `LOCKED` | 요청 평가, 기본 차단 | 0 |
+| `GRANT` | 모든 조건 통과 시 제한된 폭으로 허가 | 1 |
+| `WAIT_RELEASE` | 요청이 내려갈 때까지 재실행 방지 | 0 |
+| `FAULT` | 센서 오류·heartbeat timeout·강제 문 상태 래치 | 0 |
+
+허가 조건은 `request && approve && request_fresh && risk_level==LOW && door_state==CLOSED`이며, 이미 처리한 `request_sequence`는 다시 허용하지 않는다. `FAULT`는 요청이 내려가고 센서·heartbeat·문 상태가 정상일 때 명시적 `clear_fault`로만 해제된다. 기본 파라미터는 100MHz 기준 1초 허가 펄스와 3초 heartbeat timeout이다.
+
 ## 실제 시험 순서
 
 1. motion IP만 RTL simulation

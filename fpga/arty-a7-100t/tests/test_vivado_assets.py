@@ -77,6 +77,25 @@ class VivadoAssetTests(unittest.TestCase):
         self.assertIn("write_address_first", testbench)
         self.assertIn("write_data_first", testbench)
 
+    def test_safety_gate_is_default_deny_and_simulated(self) -> None:
+        rtl = (FPGA_ROOT / "rtl" / "risk_zero_safety_gate_fsm.sv").read_text(encoding="utf-8")
+        runner = (FPGA_ROOT / "vivado" / "run_rtl_tests.tcl").read_text(encoding="utf-8")
+        testbench = (FPGA_ROOT / "sim" / "tb_risk_zero_safety_gate_fsm.sv").read_text(encoding="utf-8")
+        for required in (
+            "ST_BOOT",
+            "ST_LOCKED",
+            "ST_GRANT",
+            "ST_WAIT_RELEASE",
+            "ST_FAULT",
+            "HEARTBEAT_TIMEOUT_CYCLES",
+            "request_fresh",
+            "sequence_replayed",
+            "unlock_enable <= 0",
+        ):
+            self.assertIn(required, rtl)
+        self.assertIn("tb_risk_zero_safety_gate_fsm", runner)
+        self.assertIn("heartbeat timeout did not fail closed", testbench)
+
     def test_tcl_files_have_balanced_delimiters(self) -> None:
         for script_path in (FPGA_ROOT / "vivado").glob("*.tcl"):
             script = script_path.read_text(encoding="utf-8")
