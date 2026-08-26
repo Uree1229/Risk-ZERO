@@ -13,7 +13,7 @@
 
 `risk_zero_config.h`의 `RISK_ZERO_MOTION_BASEADDR`가 생성된 `xparameters.h` 이름과 다르면 그 한 줄만 맞춘다. 기본 장치 IP는 Vitis lwIP 템플릿에서 같은 공유기 대역의 고정 IP로 지정한다. 예를 들어 ESP32-CAM이 `192.168.0.30`이면 Arty를 `192.168.0.40`으로 둔다.
 
-BRAM profile에서는 linker script의 모든 section을 `microblaze_0_local_memory`에 둔다. 빌드 결과가 256KB를 넘으면 임의로 heap을 줄이지 말고 DDR3L profile로 전환한다.
+BRAM profile 크기 측정은 64KB heap을 유지했을 때 256KB를 107,864byte 초과했다. 따라서 전체 애플리케이션은 DDR3L profile을 사용하며, `vitis/build_ddr_app.py`가 exception vector는 local BRAM에 두고 코드·데이터·BSS·heap·stack을 DDR에 배치한다.
 
 동작 포트:
 

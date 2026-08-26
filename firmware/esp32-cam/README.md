@@ -1,16 +1,20 @@
 # ESP32-CAM 영상 수집기
 
-AI Thinker ESP32-CAM에서 JPEG 사진과 MJPEG 영상을 로컬 Wi-Fi로 제공하고, 저해상도 흑백 프레임을 Arty A7-100T로 보내는 수집 펌웨어다. 사람 후보의 동선 수치 처리는 ESP32-CAM이나 웹·모바일이 아니라 Arty의 MicroBlaze와 motion RTL이 담당한다.
+Seeed Studio XIAO ESP32S3 Sense 또는 AI Thinker ESP32-CAM에서 JPEG 사진과 MJPEG 영상을 로컬 Wi-Fi로 제공하고, 저해상도 흑백 프레임을 Arty A7-100T로 보내는 수집 펌웨어다. 사람 후보의 동선 수치 처리는 카메라 보드나 웹·모바일이 아니라 Arty의 MicroBlaze와 motion RTL이 담당한다.
 
 ## 준비
 
 1. VS Code에 PlatformIO를 설치한다.
-2. `include/config.example.h`를 `include/config.h`로 복사한다.
+2. `include/config.example.h`를 `include/risk_zero_config.h`로 복사한다.
 3. `RISK_ZERO_WIFI_SSID`, `RISK_ZERO_WIFI_PASSWORD`, `RISK_ZERO_DEVICE_ID`를 수정한다.
-4. AI Thinker ESP32-CAM을 연결하고 `Upload`를 실행한다.
+4. XIAO ESP32S3 Sense를 USB-C로 연결하고 `xiao-esp32s3-sense` 환경에서 `Upload`를 실행한다.
 5. 시리얼 모니터를 115200 baud로 열어 할당된 IP를 확인한다.
 
-`config.h`는 Git에서 제외된다. 실제 Wi-Fi 비밀번호를 `config.example.h`에 적지 않는다.
+`risk_zero_config.h`는 Git에서 제외된다. 실제 Wi-Fi 비밀번호를 `config.example.h`에 적지 않는다.
+
+현재 기본 환경은 XIAO ESP32S3 Sense의 8MB flash·8MB OPI PSRAM과 OV3660 카메라 핀맵을 사용한다. 기존 AI Thinker 보드를 사용할 때만 PlatformIO 환경을 `ai-thinker-cam`으로 바꾼다.
+
+PlatformIO가 Windows의 `COM3` 또는 macOS의 `/dev/cu.*` 포트를 자동 감지하도록 포트 이름을 저장소에 고정하지 않는다. 여러 장치가 연결돼 자동 감지가 모호할 때만 로컬 명령의 `--upload-port` 또는 `--port` 옵션을 사용한다.
 
 ## 제공 주소
 
@@ -20,7 +24,7 @@ AI Thinker ESP32-CAM에서 JPEG 사진과 MJPEG 영상을 로컬 Wi-Fi로 제공
 
 ## Arty A7-100T UDP 출력
 
-`config.h`에서 다음 값을 설정하면 기존 웹 스트림과 함께 FPGA용 흑백 프레임을 보낸다.
+`risk_zero_config.h`에서 다음 값을 설정하면 기존 웹 스트림과 함께 FPGA용 흑백 프레임을 보낸다.
 
 ```cpp
 #define RISK_ZERO_FPGA_UDP_ENABLED 1

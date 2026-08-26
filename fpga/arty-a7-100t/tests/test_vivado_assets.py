@@ -10,7 +10,8 @@ class VivadoAssetTests(unittest.TestCase):
         script = (FPGA_ROOT / "vivado" / "create_arty_bram_system.tcl").read_text(encoding="utf-8")
         for required in (
             "xc7a100tcsg324-1",
-            "local_mem {256KB}",
+            "local_mem {128KB}",
+            "set_property range 0x00040000",
             "axi_ethernetlite",
             "axi_timer",
             "axi_uartlite",
@@ -33,6 +34,40 @@ class VivadoAssetTests(unittest.TestCase):
         self.assertIn("report_timing_summary", script)
         self.assertIn("$wns < 0.0", script)
         self.assertIn("write_hw_platform -fixed -include_bit", script)
+        self.assertIn("PLATFORM.DEFAULT_OUTPUT_TYPE hw_export", script)
+        self.assertIn("PLATFORM.DESIGN_INTENT.EMBEDDED true", script)
+
+    def test_ddr_profile_uses_mig_caches_and_separate_outputs(self) -> None:
+        create = (FPGA_ROOT / "vivado" / "create_arty_bram_system.tcl").read_text(encoding="utf-8")
+        build = (FPGA_ROOT / "vivado" / "build_arty_system.tcl").read_text(encoding="utf-8")
+        constraints = (FPGA_ROOT / "constraints" / "risk_zero_arty_a7_100_ddr.xdc").read_text(encoding="utf-8")
+        for required in (
+            'RISK_ZERO_MEMORY_PROFILE',
+            'mig_7series',
+            'board_interface "ddr3_sdram"',
+            'set microblaze_cache {32KB}',
+            'Master {/microblaze_0 (Cached)}',
+            'CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {25.000}',
+            'CONFIG.CLKOUT2_REQUESTED_OUT_FREQ {100.000}',
+        ):
+            self.assertIn(required, create)
+        self.assertIn("risk_zero_arty_a7_100t_ddr.xsa", build)
+        self.assertIn("reports-ddr", build)
+        self.assertIn("IOSTANDARD LVCMOS33", constraints)
+        self.assertTrue((FPGA_ROOT / "vivado" / "create_arty_ddr_system.tcl").is_file())
+        self.assertTrue((FPGA_ROOT / "vivado" / "build_arty_ddr_system.tcl").is_file())
+
+    def test_vitis_ddr_build_keeps_lwip_platform_and_heap(self) -> None:
+        script = (FPGA_ROOT / "vitis" / "build_ddr_app.py").read_text(encoding="utf-8")
+        for required in (
+            'template="lwip_echo_server"',
+            'DDR_REGION_NAME = "mig_7series_0_memory_0"',
+            'linker.set_heap_size("0x10000")',
+            'linker.set_stack_size("0x2000")',
+            '"src/main.c", "src/echo.c"',
+            '"set(USER_COMPILE_OPTIMIZATION_LEVEL -Os)"',
+        ):
+            self.assertIn(required, script)
 
     def test_rtl_runner_includes_core_and_axi_channel_tests(self) -> None:
         script = (FPGA_ROOT / "vivado" / "run_rtl_tests.tcl").read_text(encoding="utf-8")

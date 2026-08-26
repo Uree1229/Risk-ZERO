@@ -5,8 +5,8 @@
 #include "esp_http_server.h"
 #include "img_converters.h"
 
-#if __has_include("config.h")
-#include "config.h"
+#if __has_include("risk_zero_config.h")
+#include "risk_zero_config.h"
 #else
 #include "config.example.h"
 #endif
@@ -24,7 +24,27 @@
 #define RISK_ZERO_FPGA_FRAME_INTERVAL_MS 500
 #endif
 
-// AI Thinker ESP32-CAM pin map
+// Camera pin maps from the Arduino-ESP32 CameraWebServer example. The XIAO
+// ESP32S3 Sense is the currently connected hardware; AI Thinker remains as an
+// optional PlatformIO environment for the original design.
+#if defined(RISK_ZERO_CAMERA_XIAO_ESP32S3)
+#define PWDN_GPIO_NUM -1
+#define RESET_GPIO_NUM -1
+#define XCLK_GPIO_NUM 10
+#define SIOD_GPIO_NUM 40
+#define SIOC_GPIO_NUM 39
+#define Y9_GPIO_NUM 48
+#define Y8_GPIO_NUM 11
+#define Y7_GPIO_NUM 12
+#define Y6_GPIO_NUM 14
+#define Y5_GPIO_NUM 16
+#define Y4_GPIO_NUM 18
+#define Y3_GPIO_NUM 17
+#define Y2_GPIO_NUM 15
+#define VSYNC_GPIO_NUM 38
+#define HREF_GPIO_NUM 47
+#define PCLK_GPIO_NUM 13
+#elif defined(RISK_ZERO_CAMERA_AI_THINKER)
 #define PWDN_GPIO_NUM 32
 #define RESET_GPIO_NUM -1
 #define XCLK_GPIO_NUM 0
@@ -41,6 +61,9 @@
 #define VSYNC_GPIO_NUM 25
 #define HREF_GPIO_NUM 23
 #define PCLK_GPIO_NUM 22
+#else
+#error "Select a supported RISK_ZERO_CAMERA_* PlatformIO environment"
+#endif
 
 namespace {
 httpd_handle_t control_server = nullptr;
@@ -290,7 +313,9 @@ bool start_camera() {
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
-  config.frame_size = FRAMESIZE_QVGA;
+  // OV3660 follows the vendor example sequence: allocate at the sensor's
+  // native high-resolution mode, then reduce to QVGA after the probe succeeds.
+  config.frame_size = psramFound() ? FRAMESIZE_UXGA : FRAMESIZE_SVGA;
   config.jpeg_quality = 12;
   config.fb_location = psramFound() ? CAMERA_FB_IN_PSRAM : CAMERA_FB_IN_DRAM;
   config.fb_count = psramFound() ? 2 : 1;
@@ -299,6 +324,22 @@ bool start_camera() {
   const esp_err_t result = esp_camera_init(&config);
   if (result != ESP_OK) {
     Serial.printf("camera init failed: 0x%x\n", result);
+    return false;
+  }
+  sensor_t* sensor = esp_camera_sensor_get();
+  if (sensor == nullptr) {
+    Serial.println("camera sensor probe failed");
+    return false;
+  }
+  Serial.printf("camera sensor PID: 0x%04x\n", sensor->id.PID);
+  if (sensor->id.PID == OV3660_PID) {
+    sensor->set_vflip(sensor, 1);
+    sensor->set_brightness(sensor, 1);
+    sensor->set_saturation(sensor, -2);
+  }
+  if (sensor->set_framesize(sensor, FRAMESIZE_QVGA) != 0) {
+    Serial.println("camera QVGA setup failed");
+    esp_camera_deinit();
     return false;
   }
   return true;
@@ -343,6 +384,15 @@ void start_servers() {
 void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(false);
+#if defined(RISK_ZERO_CAMERA_XIAO_ESP32S3)
+  const uint32_t serial_wait_started = millis();
+  while (!Serial && millis() - serial_wait_started < 3000) {
+    delay(10);
+  }
+#endif
+  Serial.println("RISK-ZERO camera boot");
+  Serial.printf("PSRAM: %u bytes\n", ESP.getPsramSize());
+  delay(500);
 
   if (!start_camera()) {
     delay(3000);

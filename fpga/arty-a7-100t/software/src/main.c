@@ -1,6 +1,6 @@
 #include "lwip/init.h"
 #include "lwip/netif.h"
-#include "lwip/timeouts.h"
+#include "lwip/tcp.h"
 #include "netif/xadapter.h"
 #include "platform.h"
 #include "risk_zero_app.h"
@@ -9,7 +9,13 @@
 
 
 static struct netif risk_zero_netif;
+/* The Vitis lwIP platform timer uses this symbol for periodic link checks. */
+struct netif *echo_netif = &risk_zero_netif;
 static unsigned char mac_address[] = {0x00, 0x0a, 0x35, 0x00, 0x01, 0x02};
+extern volatile int TcpFastTmrFlag;
+extern volatile int TcpSlowTmrFlag;
+void tcp_fasttmr(void);
+void tcp_slowtmr(void);
 
 int main(void) {
     ip_addr_t ip_address;
@@ -35,7 +41,9 @@ int main(void) {
     }
     netif_set_default(&risk_zero_netif);
     netif_set_up(&risk_zero_netif);
+#ifndef SDT
     platform_enable_interrupts();
+#endif
 
     xil_printf(
         "RISK-ZERO Arty IP: %d.%d.%d.%d\r\n",
@@ -50,8 +58,15 @@ int main(void) {
     }
 
     while (1) {
+        if (TcpFastTmrFlag) {
+            tcp_fasttmr();
+            TcpFastTmrFlag = 0;
+        }
+        if (TcpSlowTmrFlag) {
+            tcp_slowtmr();
+            TcpSlowTmrFlag = 0;
+        }
         xemacif_input(&risk_zero_netif);
-        sys_check_timeouts();
     }
     cleanup_platform();
     return 0;

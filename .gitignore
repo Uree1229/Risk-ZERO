@@ -12,8 +12,11 @@ __pycache__/
 .env
 .env.local
 firmware/esp32-cam/include/config.h
+firmware/esp32-cam/include/risk_zero_config.h
 firmware/esp32-cam/.pio/
 fpga/arty-a7-100t/build/
 fpga/arty-a7-100t/.Xil/
 *.jou
 *.str
+dfx_runtime.txt
+vitis_journal.py

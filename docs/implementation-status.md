@@ -1,7 +1,7 @@
 # RISK-ZERO 현재 구현 현황
 
 - 최초 기준일: 2026-08-18
-- 인수인계 확인일: 2026-08-25
+- 인수인계 확인일: 2026-08-26
 - 범위: 대학 캡스톤 MVP
 - 현재 우선순위: ESP32-CAM 현관 동선 추적
 - 유지 기능: 음성 도어락 제어 요청의 시청각 발화 검증
@@ -15,6 +15,7 @@
 | FPGA 전송 | ESP32 QVGA JPEG를 160×120 GRAY8로 축소해 RZFP UDP 전송 |
 | FPGA RTL | 선택 갱신 배경 차이, threshold, 픽셀 수·좌표 합·bbox와 AXI4-Lite |
 | MicroBlaze | lwIP UDP 재조립, FPGA 제어, 중심점·구역·체류, HTTP JSON |
+| FPGA PC toolchain | Vivado 2025.2 RTL simulation, BRAM·DDR bitstream/XSA, Vitis DDR ELF build 통과 |
 | FPGA 웹 연결 | Arty IP 저장, 1초 polling, `fpga-motion/1` 검증·표시 |
 | 동선 데이터 계약 | `trajectory-observation/1` 관찰값과 `trajectory-policy/0.1` 판정값 |
 | 사람별 추적 | 탐지 상자의 중심점 거리로 ID와 구역별 좌표열 생성 |
@@ -41,8 +42,8 @@
 
 | 항목 | 현재 상태 | 실제 연결에 필요한 것 |
 | --- | --- | --- |
-| ESP32-CAM 펌웨어 | 코드 작성 | PlatformIO 설치, 보드 업로드·연속 스트림 시험 |
-| FPGA 영상 처리 | RTL·MicroBlaze 소스, A7-100T BRAM Block Design·build Tcl 작성 | Vivado simulation·합성·timing과 실제 보드 시험 |
+| ESP32 카메라 펌웨어 | XIAO ESP32S3 Sense용 빌드·업로드와 USB/PSRAM 확인 | OV3660 `0x105` 하드웨어 장애 해결 후 카메라 초기화·연속 스트림 시험 |
+| FPGA 영상 처리 | RTL·MicroBlaze 소스, BRAM·DDR Block Design, PC simulation·합성·timing·ELF build 통과 | 실제 Arty program·UART·Ethernet·ESP32 UDP 시험 |
 | 사람 분류 | 미구현·현재 범위 제외 | 필요하면 별도 AI 가속 보드 또는 작은 CNN 연구 |
 | 사람별 추적 | FPGA는 단일 움직임 중심점, Python은 중심점 거리 MVP | 교차·가림을 다룰 re-ID 추적기와 시험 데이터 |
 | 배송 행동 | 더미 시나리오 입력 | 택배 구역 체류 또는 물건 내려놓기 탐지 기준 |
@@ -58,9 +59,9 @@
 
 ## 다음 우선순위
 
-1. ESP32-CAM에 펌웨어를 올리고 같은 Wi-Fi에서 30분 스트림을 시험한다.
+1. 정상 OV3660 모듈 또는 Sense 확장보드로 교체해 카메라 초기화를 확인하고 같은 Wi-Fi에서 30분 스트림을 시험한다.
 2. 실제 설치 위치의 현관·택배·사각지대 구역 좌표를 정한다.
-3. Vivado에서 motion RTL simulation, 합성과 timing을 확인한다.
+3. DDR bitstream과 MicroBlaze ELF를 Arty에 program하고 MIG·UART를 확인한다.
 4. MicroBlaze lwIP와 HTTP 상태 출력을 보드에서 실행한다.
 5. ESP32→Arty UDP 손실률과 실제 움직임 중심점 오차를 측정한다.
 6. 정상 이동·조명 변화·카메라 흔들림·2인 동시 이동을 각 10회 수집한다.
@@ -69,13 +70,13 @@
 ## 테스트 기준
 
 - Edge 단위 테스트 41개 통과
-- FPGA 프로토콜·reference motion·Vivado asset 테스트 11개 통과
+- FPGA 프로토콜·reference motion·Vivado/Vitis asset 테스트 13개 통과
 - 모바일 TypeScript 검사와 단위 테스트
 - 모바일 SQLite v4의 18개 테이블 확인
 - 수집 manifest 생성·검증 단위 테스트 3개
 - 웹 production build, 렌더·API 테스트 11개와 lint 통과
-- ESP32-CAM 펌웨어는 이 PC에 PlatformIO가 없어 보드 빌드·업로드 미검증
-- Arty RTL·MicroBlaze는 이 PC에 Vivado/Vitis/RTL simulator가 없어 합성·보드 실행 미검증
+- XIAO ESP32S3 Sense 펌웨어는 PlatformIO 빌드·업로드가 통과했고 USB와 8MB PSRAM도 확인했으나, OV3660이 `0x105 ESP_ERR_NOT_FOUND`로 응답하지 않아 카메라·Wi-Fi·스트림은 미검증
+- Arty RTL·MicroBlaze는 Vivado/Vitis 2025.2 PC build까지 검증됐고 실제 보드 실행은 미검증
 - 실제 모델 정확도는 아직 측정하지 않음
 
 이번 변경에서는 영상·메타데이터를 서버나 DB로 전송하지 않으며 APK도 빌드하거나 배포하지 않는다. 웹 동선은 DEMO이고 실제 ESP32-CAM·탐지 모델 미연결 상태를 화면에 표시한다.

@@ -2,7 +2,7 @@
 
 - 기준일: 2026-08-18
 - 범위: 대학 캡스톤 MVP
-- 장치: AI Thinker ESP32-CAM
+- 기본 장치: Seeed Studio XIAO ESP32S3 Sense(OV3660), AI Thinker ESP32-CAM 환경 유지
 
 ## 1. 목표
 
@@ -12,11 +12,11 @@
 
 ## 2. 고정한 구조
 
-ESP32-CAM은 바꾸지 않는다. 기존 JPEG 촬영·웹 스트림을 유지하면서 FPGA용 160×120 흑백 프레임을 추가 전송한다. 움직임 중심점과 동선 계산은 Arty A7-100T의 RTL과 MicroBlaze가 담당한다. 자세한 FPGA 구조는 [Arty A7 동선 처리 설계](RISK-ZERO_Arty-A7_FPGA_동선_처리_설계_v0.1.md)를 기준으로 한다.
+ESP32 카메라 보드는 기존 JPEG 촬영·웹 스트림을 유지하면서 FPGA용 160×120 흑백 프레임을 추가 전송한다. 현재 기본 PlatformIO 환경은 XIAO ESP32S3 Sense이고 기존 AI Thinker 환경도 유지한다. 움직임 중심점과 동선 계산은 Arty A7-100T의 RTL과 MicroBlaze가 담당한다. 자세한 FPGA 구조는 [Arty A7 동선 처리 설계](RISK-ZERO_Arty-A7_FPGA_동선_처리_설계_v0.1.md)를 기준으로 한다.
 
 ```mermaid
 flowchart LR
-    Camera["ESP32-CAM<br/>QVGA JPEG 수집"]
+    Camera["XIAO ESP32S3 Sense<br/>QVGA JPEG 수집"]
     WebStream["JPEG<br/>/capture · /stream"]
     Gray["160×120 GRAY8<br/>RZFP UDP"]
     FPGA["Arty A7-100T<br/>frame difference"]
@@ -33,7 +33,7 @@ Arty A7은 ARM이 없는 순수 FPGA이므로 YOLO 사람 분류 대신 고정 �
 
 | 구간 | 상태 | 내용 |
 | --- | --- | --- |
-| ESP32-CAM 펌웨어 | 코드 완료, 보드 시험 전 | `/health`, `/capture`, `:81/stream` |
+| ESP32 카메라 펌웨어 | XIAO build/upload·USB·PSRAM 통과, OV3660 probe 실패 | `/health`, `/capture`, `:81/stream`은 센서 교체 후 시험 |
 | 장치 연결 확인 | 완료 | Python으로 상태 조회와 JPEG 한 장 저장 |
 | FPGA용 영상 | 코드 완료, 보드 시험 전 | 160×120 GRAY8, UDP 5005, 16 chunks |
 | FPGA 움직임 처리 | RTL·MicroBlaze 코드 완료 | 선택 갱신 배경 차분·중심점·bbox, 합성 전 |
@@ -51,7 +51,7 @@ Arty A7은 ARM이 없는 순수 FPGA이므로 YOLO 사람 분류 대신 고정 �
 | `GET` | `http://장치IP/capture` | 현재 JPEG 한 장 |
 | `GET` | `http://장치IP:81/stream` | MJPEG 스트림 |
 
-펌웨어 기본값은 QVGA 320×240, JPEG 품질 12, PSRAM 사용 시 프레임 버퍼 2개다. 네트워크가 끊기면 재연결을 시도한다. Wi-Fi 비밀번호가 들어가는 `config.h`는 Git에서 제외된다.
+펌웨어 기본값은 QVGA 320×240, JPEG 품질 12, PSRAM 사용 시 프레임 버퍼 2개다. 네트워크가 끊기면 재연결을 시도한다. Wi-Fi 비밀번호가 들어가는 `risk_zero_config.h`는 Git에서 제외된다.
 
 ## 5. 탐지기 연결 계약
 
@@ -92,7 +92,7 @@ Arty A7은 ARM이 없는 순수 FPGA이므로 YOLO 사람 분류 대신 고정 �
 
 ## 7. 실행
 
-펌웨어는 `firmware/esp32-cam`을 PlatformIO로 연다. `include/config.example.h`를 `include/config.h`로 복사하고 Wi-Fi 정보를 넣은 뒤 업로드한다.
+펌웨어는 `firmware/esp32-cam`을 PlatformIO로 연다. `include/config.example.h`를 `include/risk_zero_config.h`로 복사하고 Wi-Fi 정보를 넣은 뒤 업로드한다. 포트는 Windows의 `COM*` 또는 macOS의 `/dev/cu.*` 값을 자동 감지하며 저장소에 고정하지 않는다.
 
 ```powershell
 python -m edge.risk_zero_trajectory --probe-camera http://192.168.0.30
@@ -104,9 +104,9 @@ python -m edge.risk_zero_trajectory --scenario hidden-after-delivery
 
 ## 8. 다음 구현 순서
 
-1. ESP32-CAM 한 대에 펌웨어를 올려 30분 연속 스트리밍과 프레임 손실을 확인한다.
+1. 정상 OV3660 모듈 또는 Sense 확장보드로 교체하고 카메라 초기화와 30분 연속 스트리밍을 확인한다.
 2. 카메라 설치 높이·각도를 고정하고 웹 지도 구역 좌표를 실제 현관 화면에 맞춘다.
-3. Vivado에서 Arty motion IP를 합성하고 MicroBlaze lwIP 프로젝트를 빌드한다.
+3. 검증된 DDR bitstream/ELF로 Arty를 program하고 MIG·UART를 확인한다.
 4. ESP32-CAM의 RZFP UDP를 활성화해 Arty에서 완전한 프레임 수신을 확인한다.
 5. 정상 이동, 조명 변화, 카메라 흔들림, 두 사람 동시 이동을 각 10회 촬영한다.
 6. 손실률, 움직임 오탐과 중심점 오차를 기록하고 threshold를 조정한다.

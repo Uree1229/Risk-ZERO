@@ -37,6 +37,22 @@ module risk_zero_motion_core #(
     reg [7:0] pipeline_x;
     reg [7:0] pipeline_y;
 
+    reg difference_valid;
+    reg difference_last;
+    reg [INDEX_WIDTH-1:0] difference_index;
+    reg [7:0] difference_current;
+    reg [8:0] difference_value;
+    reg [7:0] difference_x;
+    reg [7:0] difference_y;
+
+    reg motion_valid;
+    reg motion_last;
+    reg [INDEX_WIDTH-1:0] motion_index;
+    reg [7:0] motion_current;
+    reg motion_detected;
+    reg [7:0] motion_x;
+    reg [7:0] motion_y;
+
     reg [31:0] count_accumulator;
     reg [31:0] sum_x_accumulator;
     reg [31:0] sum_y_accumulator;
@@ -49,20 +65,21 @@ module risk_zero_motion_core #(
         pipeline_current >= pipeline_previous
             ? pipeline_current - pipeline_previous
             : pipeline_previous - pipeline_current;
-    wire pipeline_motion =
-        pipeline_valid && background_ready && absolute_difference >= threshold;
+    wire detected_motion =
+        difference_valid && background_ready && difference_value >= threshold;
 
-    wire [31:0] next_count = count_accumulator + (pipeline_motion ? 1 : 0);
-    wire [31:0] next_sum_x = sum_x_accumulator + (pipeline_motion ? pipeline_x : 0);
-    wire [31:0] next_sum_y = sum_y_accumulator + (pipeline_motion ? pipeline_y : 0);
+    wire [31:0] next_count = count_accumulator + (motion_detected ? 1 : 0);
+    wire [31:0] next_sum_x = sum_x_accumulator + (motion_detected ? motion_x : 0);
+    wire [31:0] next_sum_y = sum_y_accumulator + (motion_detected ? motion_y : 0);
     wire [7:0] next_min_x =
-        pipeline_motion && pipeline_x < min_x_accumulator ? pipeline_x : min_x_accumulator;
+        motion_detected && motion_x < min_x_accumulator ? motion_x : min_x_accumulator;
     wire [7:0] next_max_x =
-        pipeline_motion && pipeline_x > max_x_accumulator ? pipeline_x : max_x_accumulator;
+        motion_detected && motion_x > max_x_accumulator ? motion_x : max_x_accumulator;
     wire [7:0] next_min_y =
-        pipeline_motion && pipeline_y < min_y_accumulator ? pipeline_y : min_y_accumulator;
+        motion_detected && motion_y < min_y_accumulator ? motion_y : min_y_accumulator;
     wire [7:0] next_max_y =
-        pipeline_motion && pipeline_y > max_y_accumulator ? pipeline_y : max_y_accumulator;
+        motion_detected && motion_y > max_y_accumulator ? motion_y : max_y_accumulator;
+    wire next_count_nonzero = |count_accumulator || motion_detected;
 
     always @(posedge clk) begin
         if (!resetn) begin
@@ -71,6 +88,20 @@ module risk_zero_motion_core #(
             input_y <= 0;
             pipeline_valid <= 0;
             pipeline_last <= 0;
+            difference_valid <= 0;
+            difference_last <= 0;
+            difference_index <= 0;
+            difference_current <= 0;
+            difference_value <= 0;
+            difference_x <= 0;
+            difference_y <= 0;
+            motion_valid <= 0;
+            motion_last <= 0;
+            motion_index <= 0;
+            motion_current <= 0;
+            motion_detected <= 0;
+            motion_x <= 0;
+            motion_y <= 0;
             result_valid <= 0;
             background_ready <= 0;
             count_accumulator <= 0;
@@ -99,6 +130,8 @@ module risk_zero_motion_core #(
                 input_x <= 0;
                 input_y <= 0;
                 pipeline_valid <= 0;
+                difference_valid <= 0;
+                motion_valid <= 0;
                 count_accumulator <= 0;
                 sum_x_accumulator <= 0;
                 sum_y_accumulator <= 0;
@@ -135,10 +168,34 @@ module risk_zero_motion_core #(
             end
 
             if (pipeline_valid) begin
+                difference_valid <= 1;
+                difference_last <= pipeline_last;
+                difference_index <= pipeline_index;
+                difference_current <= pipeline_current;
+                difference_value <= absolute_difference;
+                difference_x <= pipeline_x;
+                difference_y <= pipeline_y;
+            end else begin
+                difference_valid <= 0;
+            end
+
+            if (difference_valid) begin
+                motion_valid <= 1;
+                motion_last <= difference_last;
+                motion_index <= difference_index;
+                motion_current <= difference_current;
+                motion_detected <= detected_motion;
+                motion_x <= difference_x;
+                motion_y <= difference_y;
+            end else begin
+                motion_valid <= 0;
+            end
+
+            if (motion_valid) begin
                 // Do not absorb foreground pixels into the background. This
                 // keeps a stopped foreground candidate visible across frames.
-                if (!background_ready || !pipeline_motion) begin
-                    background_frame[pipeline_index] <= pipeline_current;
+                if (!background_ready || !motion_detected) begin
+                    background_frame[motion_index] <= motion_current;
                 end
                 count_accumulator <= next_count;
                 sum_x_accumulator <= next_sum_x;
@@ -148,7 +205,7 @@ module risk_zero_motion_core #(
                 min_y_accumulator <= next_min_y;
                 max_y_accumulator <= next_max_y;
 
-                if (pipeline_last) begin
+                if (motion_last) begin
                     result_valid <= 1;
                     if (!background_ready) begin
                         background_ready <= 1;
@@ -163,10 +220,10 @@ module risk_zero_motion_core #(
                         motion_count <= next_count;
                         sum_x <= next_sum_x;
                         sum_y <= next_sum_y;
-                        min_x <= next_count == 0 ? 0 : next_min_x;
-                        max_x <= next_count == 0 ? 0 : next_max_x;
-                        min_y <= next_count == 0 ? 0 : next_min_y;
-                        max_y <= next_count == 0 ? 0 : next_max_y;
+                        min_x <= next_count_nonzero ? next_min_x : 0;
+                        max_x <= next_count_nonzero ? next_max_x : 0;
+                        min_y <= next_count_nonzero ? next_min_y : 0;
+                        max_y <= next_count_nonzero ? next_max_y : 0;
                     end
                 end
             end

@@ -11,9 +11,9 @@
 
 ## 현재 목표와 경계
 
-- 주 장치는 AI Thinker ESP32-CAM과 Digilent Arty A7-100T다.
+- 현재 주 장치는 Seeed Studio XIAO ESP32S3 Sense(OV3660)와 Digilent Arty A7-100T다. AI Thinker ESP32-CAM 환경도 호환 대상으로 유지한다.
 - FPGA 부품은 `xc7a100tcsg324-1`이다. `A100`, `Arty A100`으로 부르거나 35T 설정으로 바꾸지 않는다.
-- ESP32-CAM은 영상을 수집하고 160×120 GRAY8 프레임을 FPGA로 보낸다.
+- ESP32 카메라 보드는 영상을 수집하고 160×120 GRAY8 프레임을 FPGA로 보낸다.
 - Arty의 MicroBlaze와 motion RTL이 프레임 재조립, 움직임 중심점, 경계 상자와 동선 수치를 처리한다.
 - 웹·모바일 SW에는 하드웨어가 만든 수치와 추후 제공될 후처리 영상만 전달한다. 원시 영상 분석을 웹·모바일로 옮기지 않는다.
 - 현재 FPGA 결과는 사람 AI 판별이 아니라 움직임 전경 후보다. 범죄 의도·신원·실제 사람 여부를 판정한다고 표현하지 않는다.
@@ -23,14 +23,14 @@
 
 - Python·웹·모바일 테스트 통과와 실제 하드웨어 검증을 별도로 기록한다.
 - Vivado simulation, synthesis, implementation, timing, bitstream 생성과 실물 보드 시험 전에는 FPGA 완료로 표시하지 않는다.
-- ESP32-CAM은 PlatformIO 빌드·업로드·30분 연속 시험 전에는 펌웨어 실증 완료로 표시하지 않는다.
+- ESP32 카메라 보드는 PlatformIO 빌드·업로드·카메라 초기화·30분 연속 시험 전에는 펌웨어 실증 완료로 표시하지 않는다.
 - `ESP32-CAM → Arty → HTTP → 웹` 전체 경로가 실제 장치에서 확인되기 전에는 엔드투엔드 완료로 표시하지 않는다.
 - 실제 측정값, 로그, 스크린샷이 없으면 정확도나 프레임률을 추정해 쓰지 않는다.
 
 ## 변경 규칙
 
 - Wi-Fi 비밀번호, 장치 비밀키, 참여자 개인정보와 실제 촬영 영상은 커밋하지 않는다.
-- `firmware/esp32-cam/include/config.h`는 로컬 전용이며 `config.example.h`만 저장소에 둔다.
+- `firmware/esp32-cam/include/risk_zero_config.h`는 로컬 전용이며 `config.example.h`만 저장소에 둔다.
 - 생성 폴더, Vivado build 산출물, `node_modules`, `.env`는 커밋하지 않는다.
 - 기존 동선 기능과 시청각 검증 기능을 임의로 삭제하지 않는다.
 - APK는 사용자가 명시적으로 요청할 때만 빌드·태그·Release 업로드한다.

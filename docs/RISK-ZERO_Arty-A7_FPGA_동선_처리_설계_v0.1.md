@@ -1,7 +1,7 @@
 # RISK-ZERO Arty A7-100T 동선 처리 설계 v0.1
 
 - 기준일: 2026-08-18
-- 입력 장치: AI Thinker ESP32-CAM
+- 입력 장치: Seeed Studio XIAO ESP32S3 Sense(기본) 또는 AI Thinker ESP32-CAM
 - 처리 장치: Digilent Arty A7-100T, XC7A100T
 - 목표: 노트북의 영상 분석 역할을 FPGA 보드로 이동
 
@@ -11,7 +11,7 @@ Arty A7-100T에는 ARM이 없으므로 사람 탐지 신경망 대신 고정 카
 
 ```mermaid
 flowchart LR
-    ESP["ESP32-CAM<br/>촬영·축소"]
+    ESP["ESP32 카메라 보드<br/>촬영·축소"]
     Network["RZFP UDP<br/>160×120 GRAY8"]
     MB["MicroBlaze<br/>lwIP 재조립"]
     RTL["Artix-7 RTL<br/>차이·중심점 누적"]
@@ -35,7 +35,7 @@ MicroBlaze는 `sumX / count`, `sumY / count`로 중심점을 계산한다. 중�
 
 ## 네트워크
 
-ESP32-CAM은 Wi-Fi, Arty A7은 Ethernet으로 같은 공유기에 연결한다. JPEG 웹 화면은 유지하고, FPGA에는 160×120 흑백 프레임을 5FPS 이하로 UDP 전송한다.
+ESP32 카메라 보드는 Wi-Fi, Arty A7은 Ethernet으로 같은 공유기에 연결한다. JPEG 웹 화면은 유지하고, FPGA에는 160×120 흑백 프레임을 5FPS 이하로 UDP 전송한다.
 
 - 입력: UDP 5005
 - 상태 출력: HTTP 80
@@ -55,12 +55,10 @@ ESP32-CAM은 Wi-Fi, Arty A7은 Ethernet으로 같은 공유기에 연결한다. 
 
 ## 검증 경계
 
-Python reference model로 UDP 순서 변경과 RTL 시험 벡터를 검사했다. A7-100T용 256KB BRAM MicroBlaze Block Design과 합성·timing·XSA 생성 Tcl도 작성했다. 웹 production build와 타입·린트 검사는 완료했다. 현재 PC에 Vivado, Vitis, Icarus Verilog가 없으므로 다음 항목은 보드가 있는 개발 PC에서 확인해야 한다.
+Python reference model로 UDP 순서 변경과 RTL 시험 벡터를 검사했다. A7-100T용 BRAM·DDR MicroBlaze Block Design과 합성·timing·XSA 생성 Tcl도 작성했다. Vivado/Vitis 2025.2에서 RTL simulation, 두 profile의 bitstream/XSA와 깨끗한 workspace의 DDR ELF 자동 build까지 통과했으며, 다음 항목은 보드가 있는 지원 Windows/Linux 개발 PC에서 확인해야 한다.
 
-- SystemVerilog simulation 성공
-- XC7A100T 합성과 timing closure
-- BRAM·LUT·DSP 사용량
-- MicroBlaze BSP와 C 컴파일
+- DDR bitstream과 ELF program, MIG calibration, UART
+- MicroBlaze Ethernet link와 HTTP 응답
 - 30분 UDP 수신과 손실률
 - 실제 현관에서 조명 변화·카메라 흔들림 오탐
 
@@ -78,11 +76,10 @@ Python reference model로 UDP 순서 변경과 RTL 시험 벡터를 검사했다
 
 ## 다음 실장 순서
 
-1. Vivado에서 motion core simulation
-2. Arty block design과 IP 합성
-3. MicroBlaze가 version register를 읽는 UART 시험
-4. lwIP UDP 수신 시험
-5. ESP32-CAM FPGA 출력 활성화
-6. Arty HTTP JSON 확인
-7. 웹 실장치 모드 연결
-8. 실제 영상으로 threshold와 최소 픽셀 수 조정
+1. DDR bitstream과 ELF로 Arty program
+2. MIG calibration과 MicroBlaze UART 시험
+3. lwIP UDP 수신 시험
+4. ESP32 카메라 보드 FPGA 출력 활성화
+5. Arty HTTP JSON 확인
+6. 웹 실장치 모드 연결
+7. 실제 영상으로 threshold와 최소 픽셀 수 조정
