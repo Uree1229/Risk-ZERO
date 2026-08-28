@@ -1,6 +1,12 @@
 # RISK-ZERO · Arty A7-100T 동선 처리기
 
-ESP32-CAM의 저해상도 흑백 프레임을 받아 고정 배경과 현재 프레임의 차이를 계산하고, 움직임 픽셀의 중심점과 경계 상자를 만드는 FPGA MVP다.
+현재 구조는 외부 Parallel DVP Camera를 FPGA에 직접 연결하고, 항상 동작하는 Safety Domain과 이벤트 기반 Vision Domain을 분리한다. 기준 문서는 [2026-08-28 하드웨어 아키텍처](../../docs/RISK-ZERO_하드웨어_아키텍처_2026-08-28.md)와 [직접 Camera 구동 순서](DIRECT_CAMERA_BRINGUP.md)다.
+
+현재 추가된 `risk_zero_camera_dvp_rx.sv`는 PCLK domain의 GRAY8 byte·frame geometry 수신 골격이며, `risk_zero_safety_gate_fsm.sv`는 Door Hub toggle과 Reed·Tamper·E-stop을 직접 검사한다. Camera 모델·핀·SCCB·CDC·DVP-to-motion 연결은 아직 미구현이다.
+
+## 이전 UDP 참고 구현
+
+아래 UDP·MicroBlaze·Ethernet 내용은 PC toolchain 검증을 마친 이전 구조다. motion pixel 연산은 재사용 가능하지만 UDP frame 입력과 HTTP 출력이 새 직접 Camera 구조의 현재 수직 통합 경로는 아니다.
 
 ## 구현된 범위
 
@@ -122,17 +128,16 @@ MicroBlaze가 `sum_x / motion_count`, `sum_y / motion_count`를 계산한다. 19
 
 ## Default-deny Safety Gate FSM
 
-`rtl/risk_zero_safety_gate_fsm.sv`는 실제 액추에이터 앞단에서 개방 요청을 제한한다. FPGA가 ESP32의 인증 자체를 검증하는 구조는 아니며, 전달된 신호의 누락·모순·만료·재사용·통신 단절을 독립적으로 차단한다.
+`rtl/risk_zero_safety_gate_fsm.sv`는 Vision과 독립된 always-on Safety Domain의 핵심이다. Door Hub의 toggle event와 FPGA 직접 Reed·Tamper·E-stop을 2-FF 동기화한 뒤 기본 차단한다.
 
-| 상태 | 의미 | `unlock_enable` |
+| 상태 | 의미 | `unlock_allow_pulse` |
 | --- | --- | --- |
-| `BOOT` | heartbeat와 닫힌 문 상태를 기다림 | 0 |
-| `LOCKED` | 요청 평가, 기본 차단 | 0 |
-| `GRANT` | 모든 조건 통과 시 제한된 폭으로 허가 | 1 |
-| `WAIT_RELEASE` | 요청이 내려갈 때까지 재실행 방지 | 0 |
-| `FAULT` | 센서 오류·heartbeat timeout·강제 문 상태 래치 | 0 |
+| `BOOT` | synchronizer와 첫 heartbeat를 기다림 | 0 |
+| `LOCKED` | 1회용 auth token과 request toggle 평가 | 0 |
+| `UNLOCK` | 직접 입력이 정상일 때 제한 폭 허가 | 1 |
+| `FAULT` | Tamper·E-stop·heartbeat 또는 pulse 중 unsafe 입력 래치 | 0 |
 
-허가 조건은 `request && approve && request_fresh && risk_level==LOW && door_state==CLOSED`이며, 이미 처리한 `request_sequence`는 다시 허용하지 않는다. `FAULT`는 요청이 내려가고 센서·heartbeat·문 상태가 정상일 때 명시적 `clear_fault`로만 해제된다. 기본 파라미터는 100MHz 기준 1초 허가 펄스와 3초 heartbeat timeout이다.
+`auth_toggle`은 시간 제한 1회용 token을 arm하고 `req_toggle`이 소비한다. `door_closed_direct`, `tamper_detected`, `estop_n`과 heartbeat가 Door Hub보다 우선한다. pulse 중 unsafe 입력은 ABORT와 fault latch를 만든다. 기본 파라미터는 100MHz 기준 1초 pulse, 15초 auth, 3초 heartbeat timeout이다.
 
 ## 실제 시험 순서
 

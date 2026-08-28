@@ -1,5 +1,7 @@
 # RISK-ZERO 하드웨어 시험 기록 — 2026-08-26
 
+> **이전 아키텍처 시험 이력:** 이 기록은 XIAO ESP32-S3 Sense와 RZFP UDP·MicroBlaze 경로를 대상으로 한다. 2026-08-28 외부 DVP Camera 직접 입력 구조의 검증 결과가 아니며, 현재 계획은 [하드웨어 아키텍처](RISK-ZERO_하드웨어_아키텍처_2026-08-28.md)를 따른다.
+
 이 문서는 Windows 작업 PC에서 수행한 FPGA PC toolchain 검증과 XIAO ESP32S3 Sense 실장치 시험을 다음 개발 PC에 전달한다. Wi-Fi 비밀번호, 장치 고유번호, 개인 사진과 실제 촬영 영상은 저장소에 포함하지 않는다.
 
 ## ESP32 시험 환경

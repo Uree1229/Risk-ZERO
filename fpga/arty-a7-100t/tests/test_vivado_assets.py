@@ -84,17 +84,41 @@ class VivadoAssetTests(unittest.TestCase):
         for required in (
             "ST_BOOT",
             "ST_LOCKED",
-            "ST_GRANT",
-            "ST_WAIT_RELEASE",
+            "ST_UNLOCK",
             "ST_FAULT",
+            "AUTH_TIMEOUT_CYCLES",
             "HEARTBEAT_TIMEOUT_CYCLES",
-            "request_fresh",
-            "sequence_replayed",
-            "unlock_enable <= 0",
+            "auth_toggle",
+            "req_toggle",
+            "door_closed_direct",
+            "tamper_detected",
+            "estop_n",
+            "unlock_allow_pulse <= 0",
         ):
             self.assertIn(required, rtl)
         self.assertIn("tb_risk_zero_safety_gate_fsm", runner)
         self.assertIn("heartbeat timeout did not fail closed", testbench)
+        self.assertIn("E-stop did not immediately abort synchronized pulse", testbench)
+
+    def test_camera_dvp_receiver_validates_geometry_in_pclk_domain(self) -> None:
+        rtl = (FPGA_ROOT / "rtl" / "risk_zero_camera_dvp_rx.sv").read_text(encoding="utf-8")
+        runner = (FPGA_ROOT / "vivado" / "run_rtl_tests.tcl").read_text(encoding="utf-8")
+        testbench = (FPGA_ROOT / "sim" / "tb_risk_zero_camera_dvp_rx.sv").read_text(encoding="utf-8")
+        for required in (
+            "cam_pclk",
+            "cam_data",
+            "cam_vsync",
+            "cam_href",
+            "vision_enable",
+            "frame_geometry_valid",
+            "geometry_error",
+            "frame_pixel_count == FRAME_PIXELS",
+            "frame_line_count == FRAME_HEIGHT",
+        ):
+            self.assertIn(required, rtl)
+        self.assertIn("tb_risk_zero_camera_dvp_rx", runner)
+        self.assertIn("valid frame geometry was not accepted", testbench)
+        self.assertIn("malformed frame geometry was not rejected", testbench)
 
     def test_tcl_files_have_balanced_delimiters(self) -> None:
         for script_path in (FPGA_ROOT / "vivado").glob("*.tcl"):

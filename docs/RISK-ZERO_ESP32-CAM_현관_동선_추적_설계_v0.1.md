@@ -1,5 +1,7 @@
 # RISK-ZERO ESP32-CAM 현관 동선 추적 설계 v0.1
 
+> **이전 구조:** XIAO ESP32-S3 Sense와 AI Thinker ESP32-CAM은 현재 Camera 입력 경로에서 제외됐다. 이 문서는 UDP 영상 전송 참고 구현으로 보존하며, 현재 기준은 [2026-08-28 하드웨어 아키텍처](RISK-ZERO_하드웨어_아키텍처_2026-08-28.md)다.
+
 - 기준일: 2026-08-18
 - 범위: 대학 캡스톤 MVP
 - 기본 장치: Seeed Studio XIAO ESP32S3 Sense(OV3660), AI Thinker ESP32-CAM 환경 유지

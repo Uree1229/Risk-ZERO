@@ -1,9 +1,9 @@
 # RISK-ZERO 소프트웨어 다이어그램
 
-- 기준일: 2026-08-18
-- 범위: 음성 도어락 제어의 시청각 발화 검증
+- 기준일: 2026-08-28
+- 범위: 현재 하드웨어 아키텍처와 기존 시청각 검증
 
-ESP32-CAM과 FPGA 처리 흐름은 [현관 동선 추적 설계](../RISK-ZERO_ESP32-CAM_현관_동선_추적_설계_v0.1.md)와 [Arty A7 FPGA 설계](../RISK-ZERO_Arty-A7_FPGA_동선_처리_설계_v0.1.md)의 Mermaid 다이어그램을 기준으로 한다. 아래 1~7번은 기존 시청각 검증 구조를 유지한다.
+현재 Camera·Door Hub·FPGA 흐름은 [2026-08-28 하드웨어 아키텍처](../RISK-ZERO_하드웨어_아키텍처_2026-08-28.md)를 기준으로 한다. 아래 1~7번은 기존 시청각 검증 구조를 유지한다.
 
 | 문서 | 범위 |
 | --- | --- |
@@ -15,5 +15,6 @@ ESP32-CAM과 FPGA 처리 흐름은 [현관 동선 추적 설계](../RISK-ZERO_ES
 | [Module Sync Sequence](06-snapshot-sequence.md) | 영상·검증 저장과 ACK |
 | [Deployment Diagram](07-deployment-diagram.md) | 현관 모듈·모바일·개발 웹 배치 |
 | [FPGA Safety Gate FSM](08-fpga-safety-gate-fsm.md) | 기본 차단 개방 허가·오류 래치 상태 전이 |
+| [Current Hardware Architecture](09-current-hardware-architecture.md) | Door Hub·DVP Camera·Safety/Vision 책임 분리 |
 
 각 문서는 PNG와 Mermaid 원본을 함께 둔다. 점선은 실제 모델, BLE/Wi-Fi 또는 개발용 대체 경로처럼 연결이 남은 경계다.

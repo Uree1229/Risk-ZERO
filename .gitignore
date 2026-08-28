@@ -13,7 +13,10 @@ __pycache__/
 .env.local
 firmware/esp32-cam/include/config.h
 firmware/esp32-cam/include/risk_zero_config.h
+firmware/door-hub/include/config.h
+firmware/door-hub/include/risk_zero_config.h
 firmware/esp32-cam/.pio/
+firmware/door-hub/.pio/
 fpga/arty-a7-100t/build/
 fpga/arty-a7-100t/.Xil/
 *.jou

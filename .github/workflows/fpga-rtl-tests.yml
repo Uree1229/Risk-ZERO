@@ -1,0 +1,63 @@
+name: FPGA RTL tests
+
+on:
+  push:
+    paths:
+      - "fpga/arty-a7-100t/rtl/**"
+      - "fpga/arty-a7-100t/sim/**"
+      - "fpga/arty-a7-100t/tests/**"
+      - ".github/workflows/fpga-rtl-tests.yml"
+  pull_request:
+    paths:
+      - "fpga/arty-a7-100t/rtl/**"
+      - "fpga/arty-a7-100t/sim/**"
+      - "fpga/arty-a7-100t/tests/**"
+      - ".github/workflows/fpga-rtl-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Icarus Verilog
+        run: sudo apt-get update && sudo apt-get install -y iverilog
+
+      - name: Run Python protocol and asset tests
+        run: python -m unittest discover -s fpga/arty-a7-100t/tests -v
+
+      - name: Simulate motion core
+        run: |
+          iverilog -g2012 -s tb_risk_zero_motion_core -o /tmp/tb_motion \
+            fpga/arty-a7-100t/rtl/risk_zero_motion_core.sv \
+            fpga/arty-a7-100t/sim/tb_risk_zero_motion_core.sv
+          vvp /tmp/tb_motion
+
+      - name: Simulate AXI wrapper
+        run: |
+          iverilog -g2012 -s tb_risk_zero_motion_axi_lite -o /tmp/tb_axi \
+            fpga/arty-a7-100t/rtl/risk_zero_motion_core.sv \
+            fpga/arty-a7-100t/rtl/risk_zero_motion_axi_lite.sv \
+            fpga/arty-a7-100t/sim/tb_risk_zero_motion_axi_lite.sv
+          vvp /tmp/tb_axi
+
+      - name: Simulate Safety Gate
+        run: |
+          iverilog -g2012 -s tb_risk_zero_safety_gate_fsm -o /tmp/tb_safety \
+            fpga/arty-a7-100t/rtl/risk_zero_safety_gate_fsm.sv \
+            fpga/arty-a7-100t/sim/tb_risk_zero_safety_gate_fsm.sv
+          vvp /tmp/tb_safety
+
+      - name: Simulate DVP receiver
+        run: |
+          iverilog -g2012 -s tb_risk_zero_camera_dvp_rx -o /tmp/tb_dvp \
+            fpga/arty-a7-100t/rtl/risk_zero_camera_dvp_rx.sv \
+            fpga/arty-a7-100t/sim/tb_risk_zero_camera_dvp_rx.sv
+          vvp /tmp/tb_dvp

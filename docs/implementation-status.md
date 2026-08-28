@@ -1,84 +1,67 @@
 # RISK-ZERO 현재 구현 현황
 
-- 최초 기준일: 2026-08-18
-- 인수인계 확인일: 2026-08-26
+- 기준일: 2026-08-28
 - 범위: 대학 캡스톤 MVP
-- 현재 우선순위: ESP32-CAM 현관 동선 추적
-- 유지 기능: 음성 도어락 제어 요청의 시청각 발화 검증
+- 현재 아키텍처: ESP32-S3 Door Hub + 외부 Parallel DVP Camera + Arty A7 Safety/Vision Domain
+- 유지 기능: 웹·모바일 동선 DEMO와 음성·입모양 검증 정책 DEMO
 
-## 구현 완료
+## 이번에 반영된 결정
 
-| 영역 | 현재 동작 |
-| --- | --- |
-| ESP32-CAM | QVGA JPEG `/capture`, MJPEG `:81/stream`, 상태 `/health` 펌웨어 소스 |
-| 카메라 연결 도구 | 장치 상태 조회와 JPEG 한 장 저장 CLI |
-| FPGA 전송 | ESP32 QVGA JPEG를 160×120 GRAY8로 축소해 RZFP UDP 전송 |
-| FPGA RTL | 선택 갱신 배경 차이, threshold, 픽셀 수·좌표 합·bbox와 AXI4-Lite |
-| MicroBlaze | lwIP UDP 재조립, FPGA 제어, 중심점·구역·체류, HTTP JSON |
-| FPGA PC toolchain | Vivado 2025.2 RTL simulation, BRAM·DDR bitstream/XSA, Vitis DDR ELF build 통과 |
-| FPGA 웹 연결 | Arty IP 저장, 1초 polling, `fpga-motion/1` 검증·표시 |
-| 동선 데이터 계약 | `trajectory-observation/1` 관찰값과 `trajectory-policy/0.1` 판정값 |
-| 사람별 추적 | 탐지 상자의 중심점 거리로 ID와 구역별 좌표열 생성 |
-| 동선 정책 | 정상 배송·사각지대 이동·60초 내 재접근·인원 불일치·45초 체류·추적 불가 |
-| 동선 웹 모니터 | 6개 DEMO, 사람별 경로·수치·이유·대응·최근 이벤트 표시 |
-| 데이터 계약 | `av-verification/1` 제어 요청·검증 근거·판정·게이트 구조 |
-| Edge 정책 | PASS/BLOCK/INCONCLUSIVE, 품질·싱크·화자·위조 점수 기준 |
-| Challenge | 랜덤 문구 발급, 15초 만료, nonce 1회 사용 |
-| 제어 게이트 | PASS만 3초간 허용, 만료·재사용·불일치 시 차단 |
-| 모형 제어 | 실제 도어락 대신 `MockActuator`로 출력 여부 기록 |
-| Edge 테스트 | 시청각 검증·수집·데이터셋·카메라 연결·동선 정책·중심점 추적 41개 |
-| 웹 모니터 | 4개 DEMO 시나리오, 검증 근거와 제어 결과 표시 |
-| 입력 테스트 | 브라우저 카메라·마이크 동시 녹화, 참여자·공격 유형·거리·조명·재생 장치·소음 기록 |
-| 수집 파일 | 세션 ID가 같은 영상과 `av-capture-manifest/2` JSON을 로컬 저장, v1 읽기 호환 |
-| 수집 파일 검사 | JSON 스키마·시간·파일명·영상 존재·크기 일치 검사 CLI |
-| 데이터셋 인덱스 | 폴더 전체 검사, 상대경로 목록, 참여자·시나리오별 개수와 오류 요약 |
-| 모델 연결부 | 실제 추론 없이 흐름만 확인하는 `DemoAVSyncModelAdapter` |
-| 웹 API | 센서 이벤트와 검증 시도 저장·조회 |
-| 모바일 | 검증 홈, 이벤트·캘린더·상세·영상·설정 |
-| 모바일 DB | SQLite v4, 18개 테이블, 요청·검증·근거·제어 로그 저장 |
-| 웹 DB | D1 19개 테이블, 검증용 5개 테이블과 마이그레이션 |
+- XIAO ESP32-S3 Sense와 AI Thinker ESP32-CAM을 현재 Camera 경로에서 제거
+- Camera DVP pixel stream을 Arty FPGA가 직접 수신
+- FPGA 전체는 상시 구성, Camera·Vision만 event sleep/wake
+- ESP32-S3 DevKitC는 PIR·event_id·Wi-Fi·authorization·result/Snapshot 중계 담당
+- Safety와 Vision의 clock/reset/책임 분리
+- Safety 제어는 toggle/GPIO, Vision result/Snapshot은 SPI 우선 검토
+- 첫 수직 통합은 Solenoid가 아니라 LED
 
-## DEMO와 실제 구현의 경계
+## 현재 구현 상태
 
-| 항목 | 현재 상태 | 실제 연결에 필요한 것 |
+| 영역 | source·PC 상태 | 실장 상태 |
 | --- | --- | --- |
-| ESP32 카메라 펌웨어 | XIAO ESP32S3 Sense용 빌드·업로드와 USB/PSRAM 확인 | OV3660 `0x105` 하드웨어 장애 해결 후 카메라 초기화·연속 스트림 시험 |
-| FPGA 영상 처리 | RTL·MicroBlaze 소스, BRAM·DDR Block Design, PC simulation·합성·timing·ELF build 통과 | 실제 Arty program·UART·Ethernet·ESP32 UDP 시험 |
-| 사람 분류 | 미구현·현재 범위 제외 | 필요하면 별도 AI 가속 보드 또는 작은 CNN 연구 |
-| 사람별 추적 | FPGA는 단일 움직임 중심점, Python은 중심점 거리 MVP | 교차·가림을 다룰 re-ID 추적기와 시험 데이터 |
-| 배송 행동 | 더미 시나리오 입력 | 택배 구역 체류 또는 물건 내려놓기 탐지 기준 |
-| 동선 판정 | 규칙과 임계값 구현 | 실제 영상으로 오탐·누락 측정 후 기준 조정 |
-| AV 싱크 | 결정론적 수치 입력 | SyncNet 계열 모델 어댑터와 검증 데이터 |
-| 활성 화자 | 결정론적 수치 입력 | TalkNet 계열 모델 어댑터 |
-| 재생·합성 탐지 | 결정론적 수치 입력 | ASVspoof 계열 모델과 현관 환경 데이터 |
-| 음성 인식 | transcript fixture | ASR 엔진과 challenge 문구 비교 |
-| 카메라·마이크 | 웹 브라우저 수집 가능 | 현관 모듈 동시 캡처·타임스탬프 |
-| 통신 | 인터페이스와 동기화 로직 | BLE 또는 Wi-Fi `ModuleGateway` |
-| 도어락 | 모형 액추에이터 | 절연된 문 모형, 수동 해제, 전원·오류 안전 설계 |
-| 인증 | 미구현 | 장치 키, 요청 서명, 사용자 권한 |
+| Safety Gate | auth/request/heartbeat toggle, 2-FF sync, auth 만료·1회 소비, Reed·Tamper·E-stop, pulse 상한 RTL과 self-checking testbench | 새 interface Vivado simulation·보드 미검증 |
+| DVP RX | Camera PCLK domain GRAY8 byte·좌표·frame geometry RTL과 정상/오류 testbench | Camera·핀·XDC·ILA 미검증 |
+| Motion core | background difference, threshold, count·sum·bbox 기존 RTL | DVP stream 직접 연결 미구현 |
+| Camera control | 요구 신호와 시험 순서 문서화 | 모델 미정, XCLK/SCCB/PWDN/RESET·async FIFO 미구현 |
+| Vision 기능 | 기존 중심점·동선 정책 DEMO 유지 | 3×3 zone·timeline·B_end·Snapshot의 FPGA 통합 미구현 |
+| Door Hub | 책임·상태·안전/데이터면 분리 문서화 | PIR·SPI·GPIO firmware source 미작성 |
+| Result/Snapshot link | packet 필드 초안 | SPI register·CRC·DATA_READY 미결정·미구현 |
+| Web/Mobile | DEMO, 캘린더·상세·영상 자리, DB/API 기존 구현 | 새 Door Hub 결과·Snapshot 미연결 |
+| AV 검증 | challenge·정책·MockActuator·수집 DEMO | 실제 SyncNet/TalkNet/ASVspoof/ASR 미연결 |
+
+## 이전 구조에서 검증된 참고 자산
+
+- ESP32 카메라 JPEG/MJPEG와 160×120 GRAY8 RZFP UDP source
+- MicroBlaze lwIP UDP 재조립·AXI motion·HTTP JSON source
+- Vivado 2025.2 BRAM·DDR profile bitstream/XSA와 Vitis DDR ELF PC build
+- 기존 motion/AXI simulation과 Python protocol/reference 테스트
+- Edge 41개, 웹 렌더·API 11개, 모바일 단위·schema 검사 기록
+
+이 결과들은 삭제하지 않는다. 단, 새 DVP 직접 입력과 Door Hub SPI 구조의 실장 검증으로 계산하지 않는다.
+
+## 이번 변경의 검증
+
+- FPGA Python protocol/reference/asset 테스트 15개 통과
+- 새 RTL source와 testbench가 Vivado runner에 포함됨
+- 현재 PC 셸에는 Vivado/iverilog가 없어 새 Safety·DVP behavioral simulation 미실행
+- 실제 Camera와 Arty board 미연결
 
 ## 다음 우선순위
 
-1. 정상 OV3660 모듈 또는 Sense 확장보드로 교체해 카메라 초기화를 확인하고 같은 Wi-Fi에서 30분 스트림을 시험한다.
-2. 실제 설치 위치의 현관·택배·사각지대 구역 좌표를 정한다.
-3. DDR bitstream과 MicroBlaze ELF를 Arty에 program하고 MIG·UART를 확인한다.
-4. MicroBlaze lwIP와 HTTP 상태 출력을 보드에서 실행한다.
-5. ESP32→Arty UDP 손실률과 실제 움직임 중심점 오차를 측정한다.
-6. 정상 이동·조명 변화·카메라 흔들림·2인 동시 이동을 각 10회 수집한다.
-7. 후처리 영상과 동선 이벤트를 기존 DB에 저장하고 모바일 상세 화면에 연결한다.
+1. Vivado에서 `run_rtl_tests.tcl`을 실행해 Safety/DVP testbench를 실제 검증한다.
+2. Parallel DVP Camera 모델·모듈 회로도·전압·핀맵·출력 포맷을 확정한다.
+3. XCLK·SCCB Camera ID·PCLK·VSYNC·HREF와 frame geometry를 측정한다.
+4. Camera controller, grayscale와 async pixel FIFO를 구현한다.
+5. DVP stream을 motion core에 연결하고 `B_ref`를 검증한다.
+6. noise filter·3×3 zone·timeline·B_end·Snapshot buffer를 구현한다.
+7. Door Hub PIR event와 Safety GPIO·Vision SPI 통신을 구현한다.
+8. LED로 전체 경로를 통합한 뒤 앱 결과·Snapshot을 연결한다.
 
-## 테스트 기준
+## 주장하지 않는 범위
 
-- Edge 단위 테스트 41개 통과
-- FPGA 프로토콜·reference motion·Vivado/Vitis asset 테스트 13개 통과
-- 모바일 TypeScript 검사와 단위 테스트
-- 모바일 SQLite v4의 18개 테이블 확인
-- 수집 manifest 생성·검증 단위 테스트 3개
-- 웹 production build, 렌더·API 테스트 11개와 lint 통과
-- XIAO ESP32S3 Sense 펌웨어는 PlatformIO 빌드·업로드가 통과했고 USB와 8MB PSRAM도 확인했으나, OV3660이 `0x105 ESP_ERR_NOT_FOUND`로 응답하지 않아 카메라·Wi-Fi·스트림은 미검증
-- Arty RTL·MicroBlaze는 Vivado/Vitis 2025.2 PC build까지 검증됐고 실제 보드 실행은 미검증
-- 실제 모델 정확도는 아직 측정하지 않음
+- FPGA가 사람·신원·범죄 의도를 AI로 판정한다.
+- 여러 사람을 안정적으로 분리·재식별한다.
+- 실제 도어락과 상용 안전 성능이 검증됐다.
+- 새 DVP 구조의 FPS·latency·전력·정확도가 측정됐다.
 
-이번 변경에서는 영상·메타데이터를 서버나 DB로 전송하지 않으며 APK도 빌드하거나 배포하지 않는다. 웹 동선은 DEMO이고 실제 ESP32-CAM·탐지 모델 미연결 상태를 화면에 표시한다.
-
-새 PC와 Codex에서 이어서 작업하는 절차는 [새 PC·Codex 인수인계](CODEX_HANDOFF.md)를 따른다.
+APK는 사용자가 다시 요청할 때까지 빌드하거나 업로드하지 않는다.

@@ -1,5 +1,7 @@
 # RZFP UDP 프레임 프로토콜 v1
 
+> **이전 입력 계약:** RZFP/1은 ESP32 카메라 UDP 참고 구현의 규격이다. 현재 외부 DVP Camera는 FPGA에 직접 연결되므로 전체 frame에 이 패킷을 사용하지 않는다.
+
 ESP32-CAM이 Arty A7-100T로 보내는 `160×120 GRAY8` 한 프레임을 여러 UDP 패킷으로 나눈다. 모든 다중 바이트 정수는 big-endian이다.
 
 ## 헤더 · 32 bytes

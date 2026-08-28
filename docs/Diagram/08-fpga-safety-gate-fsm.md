@@ -8,35 +8,32 @@ stateDiagram-v2
 
     [*] --> BOOT: reset
 
-    BOOT --> LOCKED: heartbeat 정상<br/>문 닫힘
-    BOOT --> FAULT: sensor_fault<br/>강제·불명 문 상태
+    BOOT --> LOCKED: sync 준비<br/>heartbeat 확인
+    BOOT --> FAULT: Tamper<br/>E-stop
 
-    LOCKED --> GRANT: approve + fresh<br/>LOW + CLOSED<br/>새 sequence
-    LOCKED --> WAIT_RELEASE: 요청 거절
-    LOCKED --> FAULT: 센서 오류<br/>heartbeat timeout<br/>강제 문 상태
+    LOCKED --> UNLOCK: auth token<br/>req toggle<br/>Reed 닫힘
+    LOCKED --> LOCKED: auth 없음·만료<br/>Reed 열림<br/>BLOCK
+    LOCKED --> FAULT: Tamper<br/>E-stop<br/>heartbeat timeout
 
-    GRANT --> WAIT_RELEASE: 허가 시간 만료
-    GRANT --> FAULT: 허가 중 fault
+    UNLOCK --> LOCKED: pulse 상한
+    UNLOCK --> FAULT: Reed 열림<br/>Tamper·E-stop<br/>heartbeat timeout<br/>ABORT
 
-    WAIT_RELEASE --> LOCKED: request = 0
-    WAIT_RELEASE --> FAULT: 센서 오류<br/>heartbeat timeout<br/>강제 문 상태
-
-    FAULT --> LOCKED: request = 0<br/>입력 정상<br/>clear_fault
+    FAULT --> LOCKED: 직접 입력 정상<br/>heartbeat 정상<br/>clear_fault
 
     note right of BOOT
-      unlock_enable = 0
-      시작 상태도 기본 차단
+      unlock_allow_pulse = 0
+      stale edge 무시
     end note
 
-    note right of GRANT
-      unlock_enable = 1
-      최대 GRANT_CYCLES
+    note right of UNLOCK
+      1회용 auth 소비
+      최대 pulse 폭 제한
     end note
 
     note right of FAULT
-      unlock_enable = 0
-      오류 래치
+      Vision과 독립
+      명시적 정상화 필요
     end note
 ```
 
-허가되지 않은 요청은 `WAIT_RELEASE`에서 입력이 내려갈 때까지 기다려 레벨 고정에 의한 반복 개방을 방지한다. `FAULT`는 요청이 해제되고 heartbeat·센서·문 상태가 모두 정상인 경우에만 명시적으로 해제한다.
+Door Hub의 `ALLOW`는 FPGA 직접 Reed #2·Tamper·E-stop과 heartbeat를 우회할 수 없다. Camera/Vision 결과에서 `unlock_allow_pulse`로 직접 연결하는 경로는 만들지 않는다.

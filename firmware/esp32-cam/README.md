@@ -1,5 +1,7 @@
 # ESP32-CAM 영상 수집기
 
+> **참고 구현:** 2026-08-28 아키텍처에서는 XIAO/AI Thinker 카메라가 전체 frame을 FPGA로 보내지 않는다. 외부 DVP Camera가 Arty에 직접 연결되고 ESP32-S3 DevKitC는 Door Hub 역할을 맡는다. 이 폴더는 기존 JPEG·RZFP UDP 시험 이력으로 보존한다.
+
 Seeed Studio XIAO ESP32S3 Sense 또는 AI Thinker ESP32-CAM에서 JPEG 사진과 MJPEG 영상을 로컬 Wi-Fi로 제공하고, 저해상도 흑백 프레임을 Arty A7-100T로 보내는 수집 펌웨어다. 사람 후보의 동선 수치 처리는 카메라 보드나 웹·모바일이 아니라 Arty의 MicroBlaze와 motion RTL이 담당한다.
 
 ## 준비

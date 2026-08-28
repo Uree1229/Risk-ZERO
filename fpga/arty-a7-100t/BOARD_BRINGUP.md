@@ -1,5 +1,7 @@
 # Arty A7-100T 보드 구동 순서
 
+> **이전 UDP 경로:** 이 문서는 `ESP32-CAM → UDP → MicroBlaze → HTTP` 참고 구현의 구동 순서다. 현재 외부 DVP Camera 직접 입력은 [DIRECT_CAMERA_BRINGUP.md](DIRECT_CAMERA_BRINGUP.md)를 따른다.
+
 이 문서는 실제 보드에서 `ESP32-CAM → UDP → MicroBlaze → motion RTL → HTTP` 경로를 처음 확인하는 절차다. BRAM profile로 RTL과 주변장치를 먼저 검증하고, 전체 lwIP 애플리케이션은 측정된 크기 때문에 DDR3L profile에 올린다.
 
 AMD Vivado/Vitis 2025.2는 x86-64 Windows와 지정 Linux 배포판을 지원하며 macOS는 지원 OS 목록에 없다. Mac에서는 ESP32와 일반 소프트웨어 작업만 진행하고, 이 문서의 Vivado/Vitis·Arty programming 단계는 지원되는 Windows/Linux PC에서 실행한다.

@@ -2,16 +2,16 @@
 
 ## 현재 주제 기준
 
-- [새 PC·Codex 인수인계 — 2026-08-25](CODEX_HANDOFF.md)
-- [ESP32-CAM 현관 동선 추적 설계 v0.1](RISK-ZERO_ESP32-CAM_현관_동선_추적_설계_v0.1.md)
-- [Arty A7-100T FPGA 동선 처리 설계 v0.1](RISK-ZERO_Arty-A7_FPGA_동선_처리_설계_v0.1.md)
+- [하드웨어 아키텍처 — 2026-08-28](RISK-ZERO_하드웨어_아키텍처_2026-08-28.md)
+- [새 PC·Codex 인수인계 — 2026-08-28](CODEX_HANDOFF.md)
+- [외부 DVP Camera 구동 순서](../fpga/arty-a7-100t/DIRECT_CAMERA_BRINGUP.md)
 - [FPGA Default-deny Safety Gate FSM 설계 v0.1](RISK-ZERO_FPGA_Safety_Gate_FSM_설계_v0.1.md)
 - [시청각 발화 검증 시스템 주제 정의서 v0.1](RISK-ZERO_시청각_발화_검증_주제_정의서_v0.1.md)
 - [시청각 검증 공격 시나리오 v0.1](RISK-ZERO_시청각_검증_공격_시나리오_v0.1.md)
 - [시청각 검증 데이터 계약 v0.1](RISK-ZERO_시청각_검증_데이터_계약_v0.1.md)
 - [시청각 데이터 수집 가이드 v0.2](RISK-ZERO_시청각_데이터_수집_가이드_v0.1.md)
 
-2026-08-18부터 ESP32-CAM으로 현관 영상을 수집하고 Arty A7-100T에서 움직임 중심점과 동선을 처리하는 기능을 우선 구현한다. 음성 도어락 제어 요청의 시청각 발화 검증은 `/av`와 관련 문서에 유지한다. 제안서·개발계획·기존 Use Case는 변경 이력으로 보관한다.
+2026-08-28부터 외부 Parallel DVP Camera를 Arty A7-100T에 직접 연결하고 ESP32-S3 DevKitC를 Door Hub로 사용하는 구조가 현재 기준이다. XIAO/ESP32-CAM UDP 입력과 관련 문서는 이전 구현 이력으로 보관한다. 음성 도어락 제어 요청의 시청각 발화 검증은 `/av`와 관련 문서에 유지한다.
 
 ## 기획·발표 자료
 
@@ -30,6 +30,8 @@
 
 ## 이전 주제 참고자료
 
+- [ESP32-CAM/XIAO UDP 현관 동선 추적 설계 v0.1](RISK-ZERO_ESP32-CAM_현관_동선_추적_설계_v0.1.md)
+- [이전 Arty UDP·MicroBlaze 동선 처리 설계 v0.1](RISK-ZERO_Arty-A7_FPGA_동선_처리_설계_v0.1.md)
 - [현관 위험 대응 Use Case v0.2](RISK-ZERO_시나리오_Use_Case_정의서_v0.1.md)
 - [개선 백로그 — 2026-07-29](RISK-ZERO_개선_백로그_2026-07-29.md)
 - [제품 개발계획 검토 — 2026-07-28](RISK-ZERO_제품_개발계획_검토_2026-07-28.md)

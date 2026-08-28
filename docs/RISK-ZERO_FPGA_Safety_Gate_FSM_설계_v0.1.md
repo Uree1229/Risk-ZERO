@@ -1,83 +1,104 @@
-# RISK-ZERO FPGA Safety Gate FSM 설계 v0.1
+# RISK-ZERO FPGA Safety Gate FSM 설계 v0.2
 
 ![RISK-ZERO FPGA Default-Deny Safety Gate FSM](Diagram/08-fpga-safety-gate-fsm.png)
 
 ## 목적
 
-이 FSM은 문 개방 액추에이터의 마지막 하드웨어 허가 게이트다. 인증 알고리즘을 대신하지 않으며, ESP32가 전달한 요청에서 누락·위험·만료·재사용·센서 오류·heartbeat 단절을 확인해 기본 차단한다.
+Safety Gate는 문 개방 출력 앞의 항상 동작하는 FPGA 하드웨어 게이트다. Door Hub의 authorization/request와 FPGA에 직접 연결된 Reed #2·Tamper·E-stop을 다시 확인하고, 모든 조건이 정상일 때만 제한된 `unlock_allow_pulse`를 출력한다.
 
-```mermaid
-stateDiagram-v2
-    [*] --> BOOT
-    BOOT --> LOCKED: heartbeat 정상 + 문 닫힘
-    BOOT --> FAULT: 센서 오류 또는 강제/불명 문 상태
-
-    LOCKED --> GRANT: 승인 + fresh + LOW + 문 닫힘 + 새 sequence
-    LOCKED --> WAIT_RELEASE: 요청 거절
-    LOCKED --> FAULT: 센서 오류 / heartbeat timeout / 강제 문 상태
-
-    GRANT --> WAIT_RELEASE: 최대 개방 시간 만료
-    GRANT --> FAULT: 허가 중 오류·통신 단절·강제 문 상태
-
-    WAIT_RELEASE --> LOCKED: request=0
-    WAIT_RELEASE --> FAULT: 오류·통신 단절·강제 문 상태
-
-    FAULT --> LOCKED: request=0 + 모든 입력 정상 + clear_fault
-```
+Vision Domain은 이 FSM에 개방 신호를 직접 전달할 수 없다. Camera PCLK 정지, Vision reset 또는 영상처리 fault가 Safety clock을 멈추거나 출력을 활성화해서는 안 된다.
 
 ## 상태
 
 | 값 | 상태 | 동작 |
 | ---: | --- | --- |
-| 0 | `BOOT` | heartbeat가 확인되고 문이 닫힐 때까지 차단 |
-| 1 | `LOCKED` | 요청 평가, 기본 출력 0 |
-| 2 | `GRANT` | 파라미터로 제한된 시간만 `unlock_enable=1` |
-| 3 | `WAIT_RELEASE` | 요청이 내려갈 때까지 같은 요청 재실행 방지 |
-| 4 | `FAULT` | 오류를 래치하고 명시적 정상화 전까지 차단 |
+| 0 | `BOOT` | 입력 synchronizer와 첫 heartbeat를 기다리며 기본 차단 |
+| 1 | `LOCKED` | auth token과 새 request를 평가하며 출력 0 |
+| 2 | `UNLOCK` | 파라미터로 제한된 시간만 개방 pulse 1 |
+| 3 | `FAULT` | Tamper·E-stop·heartbeat 또는 pulse 중 unsafe 입력을 래치 |
+
+```mermaid
+stateDiagram-v2
+    [*] --> BOOT
+    BOOT --> LOCKED: synchronizer 준비 + heartbeat
+    BOOT --> FAULT: Tamper 또는 E-stop
+
+    LOCKED --> UNLOCK: auth_armed + req_toggle + Reed 닫힘
+    LOCKED --> LOCKED: auth 없음·만료 또는 Reed 열림 / BLOCK
+    LOCKED --> FAULT: Tamper·E-stop·heartbeat timeout
+
+    UNLOCK --> LOCKED: pulse 상한 도달
+    UNLOCK --> FAULT: Reed 열림·Tamper·E-stop·heartbeat timeout / ABORT
+
+    FAULT --> LOCKED: 모든 입력 정상 + heartbeat + clear_fault
+```
 
 ## 입력 계약
 
-| 신호 | 폭 | 의미 |
-| --- | ---: | --- |
-| `request` | 1 | 개방 요청 레벨. 처리 후 반드시 0으로 복귀 |
-| `approve` | 1 | 상위 인증·승인 결과 |
-| `request_fresh` | 1 | 요청 유효시간 검사를 통과했는지 |
-| `request_sequence` | 16 | 단조 증가 요청 번호, wraparound 허용 |
-| `risk_level` | 2 | `00=LOW`, 그 외는 개방 차단 |
-| `door_state` | 2 | `00=CLOSED`, `01=OPEN`, `10=FORCED`, `11=UNKNOWN` |
-| `sensor_fault` | 1 | 센서 오류 통합 신호 |
-| `heartbeat_toggle` | 1 | 송신측이 주기적으로 반전하는 생존 신호 |
-| `clear_fault` | 1 | 모든 입력이 정상일 때만 적용되는 오류 해제 |
+Door Hub 신호와 직접 안전 입력은 2-FF synchronizer를 통과한다.
 
-## 차단 사유 코드
+| 신호 | 의미 |
+| --- | --- |
+| `auth_toggle` | Door Hub가 새 authorization을 발급할 때 반전 |
+| `req_toggle` | authorization 소비와 실행을 요청할 때 반전 |
+| `heartbeat_toggle` | Door Hub 생존 신호, 주기적으로 반전 |
+| `door_closed_direct` | FPGA에 직접 연결된 Reed #2가 닫힘일 때 1 |
+| `tamper_detected` | 강제 조작 감지 시 1 |
+| `estop_n` | 정상 1, 비상 차단 0 |
+| `clear_fault` | 모든 입력 정상 상태에서 명시적으로 fault 해제 |
+
+toggle은 처리 후 0으로 내리는 pulse가 아니다. 이전 값과 달라지는 edge가 새 이벤트다. reset 뒤 synchronizer가 안정되는 동안 입력 레벨을 기준값으로 잡아 reset 이전의 오래된 edge가 새 요청으로 처리되지 않도록 한다.
+
+## 출력 계약
+
+| 신호 | 의미 |
+| --- | --- |
+| `ack_toggle` | req event 처리 때 반전 |
+| `decision_code` | `0=NONE`, `1=ALLOW`, `2=BLOCK`, `3=ABORT` |
+| `block_reason` | 차단·중단 원인 |
+| `auth_armed` | 만료되지 않은 1회용 authorization 존재 |
+| `fault_latched` | 명시적 정상화 전까지 유지되는 fault |
+| `unlock_allow_pulse` | 외부 driver 앞의 시간 제한 enable |
+
+## 차단 사유
 
 | 코드 | 의미 |
 | ---: | --- |
 | 0 | 없음 |
-| 1 | 승인 없음 |
-| 2 | 위험 수준이 LOW가 아님 |
-| 3 | 문이 닫혀 있지 않음 |
-| 4 | 센서 오류 |
-| 5 | heartbeat timeout |
-| 6 | 만료된 요청 |
-| 7 | 동일하거나 과거 sequence 재사용 |
-| 8 | 강제 개방 또는 알 수 없는 문 상태 |
+| 1 | authorization 없음 또는 이미 소비 |
+| 2 | authorization 만료 |
+| 3 | Reed #2가 문 닫힘을 확인하지 못함 |
+| 4 | Tamper |
+| 5 | E-stop |
+| 6 | heartbeat 없음 또는 timeout |
 
 ## 안전 불변식
 
-1. reset 직후와 `BOOT`, `LOCKED`, `WAIT_RELEASE`, `FAULT`에서는 `unlock_enable=0`이다.
-2. `GRANT`의 최대 길이는 `GRANT_CYCLES`를 넘지 않는다.
-3. `GRANT` 중 fault가 발생하면 다음 clock에서 즉시 개방 출력을 내린다.
-4. request를 계속 1로 유지해도 재개방되지 않는다.
-5. 동일하거나 과거의 sequence는 개방되지 않는다.
-6. heartbeat가 없거나 끊기면 개방되지 않는다.
+1. reset, BOOT, LOCKED와 FAULT에서 `unlock_allow_pulse=0`이다.
+2. authorization은 시간 제한이 있고 request 한 번에 소비된다.
+3. request toggle만으로 authorization을 만들 수 없다.
+4. Door Hub ALLOW가 Reed·Tamper·E-stop·heartbeat를 override할 수 없다.
+5. UNLOCK 중 직접 입력이 unsafe가 되면 동기화 직후 출력 0과 ABORT로 전환한다.
+6. pulse 폭은 `UNLOCK_PULSE_CYCLES`를 넘지 않는다.
+7. clear fault는 E-stop 해제, Tamper 정상, Reed 닫힘과 heartbeat가 모두 만족될 때만 적용된다.
 
-100MHz clock에서 기본 `GRANT_CYCLES=100_000_000`은 1초, `HEARTBEAT_TIMEOUT_CYCLES=300_000_000`은 3초다.
+100MHz 기준 기본값은 개방 1초, authorization 15초, heartbeat timeout 3초다. 이 값은 실험용이며 actuator 사양·정책 검토 후 변경한다.
 
 ## 검증 범위
 
-`sim/tb_risk_zero_safety_gate_fsm.sv`는 reset 기본 차단, 정상 허가 펄스 폭, 요청 고정 시 재실행 방지, 승인 없음, 만료, 고위험, sequence replay, 허가 중 sensor fault, fault 해제 조건, heartbeat timeout을 검사한다.
+`tb_risk_zero_safety_gate_fsm.sv`는 다음을 self-check한다.
 
-## 보안 경계
+- reset 기본 차단과 첫 heartbeat 전 BOOT
+- authorization arm·1회 소비·만료
+- authorization 없는 요청 차단
+- Reed open 차단
+- Tamper fault latch와 unsafe clear 거절
+- pulse 중 E-stop ABORT
+- heartbeat timeout fail-closed
+- pulse 최대 폭
 
-현재 FSM은 `approve`, `risk_level`, `request_fresh`의 출처가 진짜인지 암호학적으로 검증하지 않는다. ESP32 침해까지 방어 범위에 넣으려면 신뢰 장치가 생성한 MAC/서명, nonce, 만료시간을 FPGA 또는 별도 secure element에서 검증해야 한다.
+source와 testbench는 작성됐으나 2026-08-28 반영 PC에는 Vivado/RTL simulator가 없어 새 interface simulation은 재실행 전이다. Python asset test 통과와 behavioral simulation 통과를 구분한다.
+
+## 외부 하드웨어 경계
+
+`unlock_allow_pulse`는 직접 Solenoid 전원을 공급하지 않는다. FPGA 미구성·reset·전원 이상에서도 default OFF가 되도록 external pulldown, MOSFET driver, flyback 보호, 별도 actuator 전원과 E-stop 차단 경로가 필요하다. 첫 수직 통합은 LED로 수행한다.

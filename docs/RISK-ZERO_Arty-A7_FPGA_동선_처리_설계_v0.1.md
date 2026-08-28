@@ -1,5 +1,7 @@
 # RISK-ZERO Arty A7-100T 동선 처리 설계 v0.1
 
+> **이전 구조:** 이 문서는 XIAO/ESP32-CAM의 RZFP UDP와 MicroBlaze Ethernet 입력 구현 이력이다. 2026-08-28부터 외부 DVP Camera 직접 입력과 Safety/Vision 분리를 사용하는 [현재 하드웨어 아키텍처](RISK-ZERO_하드웨어_아키텍처_2026-08-28.md)가 우선한다.
+
 - 기준일: 2026-08-18
 - 입력 장치: Seeed Studio XIAO ESP32S3 Sense(기본) 또는 AI Thinker ESP32-CAM
 - 처리 장치: Digilent Arty A7-100T, XC7A100T
