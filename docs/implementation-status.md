@@ -19,8 +19,8 @@
 
 | 영역 | source·PC 상태 | 실장 상태 |
 | --- | --- | --- |
-| Safety Gate | auth/request/heartbeat toggle, 2-FF sync, auth 만료·1회 소비, Reed·Tamper·E-stop, pulse 상한 RTL과 self-checking testbench | 새 interface Vivado simulation·보드 미검증 |
-| DVP RX | Camera PCLK domain GRAY8 byte·좌표·frame geometry RTL과 정상/오류 testbench | Camera·핀·XDC·ILA 미검증 |
+| Safety Gate | auth/request/heartbeat toggle, 2-FF sync, auth 만료·1회 소비, Reed·Tamper·E-stop, pulse 상한 RTL과 self-checking Icarus simulation 통과 | Vivado 재검증·보드 미검증 |
+| DVP RX | Camera PCLK domain GRAY8 byte·좌표·frame geometry 정상/오류 Icarus simulation 통과 | Camera·핀·XDC·ILA 미검증 |
 | Motion core | background difference, threshold, count·sum·bbox 기존 RTL | DVP stream 직접 연결 미구현 |
 | Camera control | 요구 신호와 시험 순서 문서화 | 모델 미정, XCLK/SCCB/PWDN/RESET·async FIFO 미구현 |
 | Vision 기능 | 기존 중심점·동선 정책 DEMO 유지 | 3×3 zone·timeline·B_end·Snapshot의 FPGA 통합 미구현 |
@@ -42,13 +42,15 @@
 ## 이번 변경의 검증
 
 - FPGA Python protocol/reference/asset 테스트 15개 통과
-- 새 RTL source와 testbench가 Vivado runner에 포함됨
-- 현재 PC 셸에는 Vivado/iverilog가 없어 새 Safety·DVP behavioral simulation 미실행
+- GitHub Actions Icarus Verilog에서 motion core·AXI wrapper·새 Safety Gate·DVP RX simulation 통과
+- 성공 run: <https://github.com/Uree1229/Risk-ZERO/actions/runs/33165372737>
+- 새 RTL source와 testbench가 Vivado runner에도 포함됨
+- 현재 PC 셸에는 Vivado가 없어 AMD XSIM 재실행과 새 구조 합성은 미실행
 - 실제 Camera와 Arty board 미연결
 
 ## 다음 우선순위
 
-1. Vivado에서 `run_rtl_tests.tcl`을 실행해 Safety/DVP testbench를 실제 검증한다.
+1. Vivado XSIM에서 `run_rtl_tests.tcl`을 실행해 Icarus와 별도로 재검증한다.
 2. Parallel DVP Camera 모델·모듈 회로도·전압·핀맵·출력 포맷을 확정한다.
 3. XCLK·SCCB Camera ID·PCLK·VSYNC·HREF와 frame geometry를 측정한다.
 4. Camera controller, grayscale와 async pixel FIFO를 구현한다.

@@ -97,7 +97,7 @@ toggle은 처리 후 0으로 내리는 pulse가 아니다. 이전 값과 달라�
 - heartbeat timeout fail-closed
 - pulse 최대 폭
 
-source와 testbench는 작성됐으나 2026-08-28 반영 PC에는 Vivado/RTL simulator가 없어 새 interface simulation은 재실행 전이다. Python asset test 통과와 behavioral simulation 통과를 구분한다.
+source와 testbench는 GitHub Actions의 Icarus Verilog behavioral simulation을 통과했다. 성공 기록은 [FPGA RTL tests run 33165372737](https://github.com/Uree1229/Risk-ZERO/actions/runs/33165372737)이다. AMD XSIM과 실제 Arty 입력 시험은 별도로 남아 있다.
 
 ## 외부 하드웨어 경계
 
