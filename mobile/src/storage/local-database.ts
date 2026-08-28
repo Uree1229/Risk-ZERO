@@ -7,6 +7,7 @@ import {
 import type {
   DeviceRegistrationInput,
   DeviceSummary,
+  DoorHubSnapshot,
   EventLogItem,
   EventReview,
   NotificationPreferences,
@@ -15,6 +16,7 @@ import type {
 } from "../types";
 import { DEFAULT_NOTIFICATION_PREFERENCES } from "../notifications/notification-policy";
 import { snapshotToEventLogItem } from "./event-log";
+import { doorHubSnapshotToEventLogItems } from "../door-hub";
 
 // Expo 웹 미리보기에서는 네이티브 SQLite 대신 화면 동작만 유지합니다.
 // Android와 iOS 빌드에서는 local-database.native.ts가 자동으로 선택됩니다.
@@ -62,6 +64,25 @@ export async function saveSnapshotLocally(snapshot: SystemSnapshot) {
         capturedAt: event.capturedAt ?? snapshot.generatedAt,
       },
     });
+  }
+}
+
+export async function saveDoorHubSnapshotLocally(snapshot: DoorHubSnapshot) {
+  const now = snapshot.generatedAt;
+  webDevices.set(snapshot.deviceId, {
+    id: snapshot.deviceId,
+    displayName: snapshot.deviceId,
+    provider: "DoorHubAPI",
+    transport: "wifi",
+    syncStatus: "idle",
+    lastConnectedAt: now,
+    lastSyncedAt: now,
+    batteryPercent: null,
+    storageUsedBytes: null,
+    storageCapacityBytes: null,
+  });
+  for (const event of doorHubSnapshotToEventLogItems(snapshot)) {
+    webEventItems.set(event.id, { capturedAt: event.capturedAt ?? now, item: event });
   }
 }
 

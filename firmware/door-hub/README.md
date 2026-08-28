@@ -48,6 +48,13 @@ Safety heartbeat는 위 Vision 상태와 무관하게 계속 동작해야 한다
 
 확정 전 숫자를 임의로 넣지 않는다. 로컬 Wi-Fi, 장치 키와 참가자 정보는 Git에 커밋하지 않는다.
 
+## 현재 소스
+
+- `include/door_hub_state.h`: 핀·통신 라이브러리와 무관한 event 상태 및 FPGA/Safety 결과 계약
+- `src/door_hub_state.cpp`: 단조 증가 event id, 중복 start 억제, 과거 event result 거부, LED Safety 불변식
+
+이 코드는 실제 GPIO나 SPI를 초기화하지 않는다. 보드 revision, pin, SPI mode, debounce와 종료 조건이 확정되면 이 상태 코어 바깥에 ESP-IDF/Arduino 어댑터를 붙인다.
+
 ## 첫 시험
 
 첫 수직 통합은 actuator 대신 LED를 사용한다.

@@ -16,7 +16,7 @@ import {
   SafeAreaProvider,
   SafeAreaView,
 } from "react-native-safe-area-context";
-import { getSnapshot } from "./src/api";
+import { getDoorHubSnapshot } from "./src/api";
 import {
   loadRecentEvents,
   loadNotificationPreferences,
@@ -24,7 +24,7 @@ import {
   loadVideoStorageSummary,
   registerDeviceLocally,
   saveEventReview,
-  saveSnapshotLocally,
+  saveDoorHubSnapshotLocally,
   saveNotificationPreferences,
 } from "./src/storage/local-database";
 import { EventsScreen } from "./src/events/EventsScreen";
@@ -35,51 +35,45 @@ import {
   type NotificationPermissionState,
 } from "./src/notifications/risk-notifications";
 import { DEFAULT_NOTIFICATION_PREFERENCES } from "./src/notifications/notification-policy";
-import { snapshotToEventLogItem } from "./src/storage/event-log";
+import { doorHubSnapshotToEventLogItems } from "./src/door-hub";
 import { removeDeviceAndStoredData } from "./src/devices/device-management";
 import type {
   DeviceRegistrationInput,
   DeviceSummary,
+  DoorHubSnapshot,
+  DoorHubStage,
   EventLogItem,
   NotificationPreferences,
-  SensorReading,
-  SystemSnapshot,
-  VerificationDecision,
+  SafetyDecision,
   VideoStorageSummary,
 } from "./src/types";
 
 type TabId = "home" | "events" | "settings";
 
 const scenarios = [
-  { id: "pass", label: "통과" },
-  { id: "audio-replay", label: "음성 재생" },
-  { id: "sync-mismatch", label: "싱크 오류" },
-  { id: "inconclusive", label: "판단 불가" },
+  { id: "delivery", label: "택배 후 이탈" },
+  { id: "lingering", label: "장시간 체류" },
+  { id: "return", label: "재접근" },
+  { id: "safety-abort", label: "안전 차단" },
 ];
 
-const decisionMeta: Record<VerificationDecision, { label: string; color: string; soft: string }> = {
-  pending: { label: "검증 대기", color: "#93A2A4", soft: "#182224" },
-  pass: { label: "통과", color: "#72D8B2", soft: "#112A23" },
-  inconclusive: { label: "판단 불가", color: "#F5C86C", soft: "#2B2618" },
-  block: { label: "차단", color: "#FF6C73", soft: "#301A1D" },
+const stageLabel: Record<DoorHubStage, string> = {
+  idle: "대기",
+  "vision-wake": "Vision 기동",
+  "camera-init": "카메라 준비",
+  capture: "관찰 중",
+  "end-background": "종료 배경 저장",
+  "result-ready": "결과 준비됨",
+  "vision-sleep": "Vision 절전",
+  fault: "오류 고정",
 };
 
-function readingValue(reading: SensorReading) {
-  if (typeof reading.value === "boolean") return reading.value ? "감지" : "없음";
-  return `${reading.value}${reading.unit ? ` ${reading.unit}` : ""}`;
-}
-
-function MetricCard({ reading }: { reading: SensorReading }) {
-  return (
-    <View style={styles.metricCard}>
-      <View style={styles.metricHeader}>
-        <Text style={styles.metricLabel}>{reading.label}</Text>
-        <View style={styles.onlineDot} />
-      </View>
-      <Text style={styles.metricValue}>{readingValue(reading)}</Text>
-    </View>
-  );
-}
+const safetyLabel: Record<SafetyDecision, string> = {
+  none: "요청 없음",
+  allow: "허용",
+  block: "차단",
+  abort: "강제 차단",
+};
 
 function HomeScreen({
   snapshot,
@@ -88,14 +82,13 @@ function HomeScreen({
   onRefresh,
   onScenario,
 }: {
-  snapshot: SystemSnapshot;
+  snapshot: DoorHubSnapshot;
   source: "api" | "fallback";
   refreshing: boolean;
   onRefresh: () => void;
   onScenario: (scenarioId: string) => void;
 }) {
-  const meta = decisionMeta[snapshot.verification.decision];
-  const score = Math.round((snapshot.verification.confidence ?? 0) * 100);
+  const safetyFault = snapshot.safety.decision === "abort" || snapshot.safety.faultLatched;
 
   return (
     <ScrollView
@@ -104,8 +97,9 @@ function HomeScreen({
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.heroCopy}>
-        <Text style={styles.eyebrow}>AUDIO-VISUAL VERIFY</Text>
-        <Text style={styles.title}>제어 요청 검증</Text>
+        <Text style={styles.eyebrow}>DOOR HUB EVENT</Text>
+        <Text style={styles.title}>현관 이벤트</Text>
+        <Text style={styles.heroDescription}>FPGA 영상 결과와 독립 Safety 상태를 확인합니다.</Text>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scenarioRow}>
@@ -119,11 +113,11 @@ function HomeScreen({
         })}
       </ScrollView>
 
-      <View style={[styles.riskCard, { borderColor: `${meta.color}55` }]}>
+      <View style={[styles.riskCard, safetyFault && styles.safetyFaultCard]}>
         <View style={styles.riskTopline}>
           <View>
-            <Text style={styles.sectionLabel}>검증 결과</Text>
-            <Text style={[styles.riskLabel, { color: meta.color }]}>{meta.label}</Text>
+            <Text style={styles.sectionLabel}>EVENT #{snapshot.session.eventId}</Text>
+            <Text style={[styles.riskLabel, safetyFault && styles.safetyFaultText]}>{stageLabel[snapshot.session.stage]}</Text>
           </View>
           <View style={[styles.sourceBadge, { backgroundColor: source === "api" ? "#143027" : "#2A2518" }]}>
             <View style={[styles.sourceDot, { backgroundColor: source === "api" ? "#72D8B2" : "#F5C86C" }]} />
@@ -131,35 +125,41 @@ function HomeScreen({
           </View>
         </View>
 
-        <View style={styles.scoreRow}>
-          <View style={[styles.scoreCircle, { borderColor: meta.color, backgroundColor: meta.soft }]}>
-            <Text style={[styles.scoreNumber, { color: meta.color }]}>{score}</Text>
-            <Text style={styles.scoreUnit}>%</Text>
+        <View style={styles.presenceRow}>
+          <View style={styles.presenceCopy}>
+            <Text style={styles.presenceCaption}>방문자</Text>
+            <Text style={styles.presenceValue}>{snapshot.vision.visitorPresent ? "관찰 중" : "이탈 확인"}</Text>
+            <Text style={styles.presenceZone}>{snapshot.vision.primaryZone ? `마지막 구역 ${snapshot.vision.primaryZone}` : "구역 정보 없음"}</Text>
           </View>
-          <View style={styles.scoreCopy}>
-            <Text style={styles.summary}>{snapshot.verification.summary}</Text>
-            <View style={styles.reasonWrap}>
-              {snapshot.assessment.reasons.map((reason) => <Text style={styles.reasonPill} key={reason}>{reason}</Text>)}
-            </View>
+          <View style={styles.pirBadge}>
+            <View style={[styles.sourceDot, { backgroundColor: snapshot.session.pirActive ? "#F5C86C" : "#72D8B2" }]} />
+            <Text style={styles.sourceText}>{snapshot.session.pirActive ? "PIR ACTIVE" : "PIR END"}</Text>
           </View>
         </View>
 
-        <View style={styles.responseBox}>
-          <Text style={styles.responseLabel}>제어 게이트</Text>
-          <Text style={styles.responseMessage}>{snapshot.response.message}</Text>
-          {snapshot.verification.decision !== "pass" ? (
-            <Pressable style={styles.confirmButton} onPress={() => Alert.alert("제어 차단", snapshot.verification.reasonCodes.join(" · "))}>
-              <Text style={styles.confirmButtonText}>차단 근거 확인</Text>
-            </Pressable>
-          ) : null}
+        <View style={styles.hubMetricGrid}>
+          {[
+            ["객체", `${snapshot.vision.objectCount}개`],
+            ["체류", `${Math.round(snapshot.vision.dwellMs / 1000)}초`],
+            ["배경 변화", `${Math.round(snapshot.vision.backgroundChangeRatio * 100)}%`],
+            ["Snapshot", snapshot.vision.snapshotReady ? "준비됨" : "대기"],
+          ].map(([label, value]) => <View style={styles.hubMetric} key={label}><Text style={styles.metricLabel}>{label}</Text><Text style={styles.hubMetricValue}>{value}</Text></View>)}
         </View>
       </View>
 
       <View style={styles.sectionTitleRow}>
-        <View><Text style={styles.sectionLabel}>EDGE EVIDENCE</Text><Text style={styles.sectionTitle}>검증 수치</Text></View>
-        <Text style={styles.providerText}>카메라·마이크</Text>
+        <View><Text style={styles.sectionLabel}>SAFETY GATE</Text><Text style={styles.sectionTitle}>{safetyLabel[snapshot.safety.decision]}</Text></View>
+        <Text style={styles.providerText}>{snapshot.safety.outputActive ? "LED ON" : "LED OFF"}</Text>
       </View>
-      <View style={styles.metricGrid}>{snapshot.sensorEvent.readings.map((reading) => <MetricCard key={reading.id} reading={reading} />)}</View>
+      <View style={styles.safetyGrid}>
+        {[
+          ["Heartbeat", snapshot.safety.heartbeatOk],
+          ["문 닫힘", snapshot.safety.doorClosed],
+          ["Tamper 정상", !snapshot.safety.tamperDetected],
+          ["E-stop 정상", !snapshot.safety.emergencyStop],
+        ].map(([label, ok]) => <View style={[styles.safetyFlag, !ok && styles.safetyFlagFault]} key={String(label)}><View style={[styles.flagDot, { backgroundColor: ok ? "#56D3AD" : "#FF6C73" }]} /><Text style={styles.safetyFlagText}>{label}</Text></View>)}
+      </View>
+      {snapshot.safety.blockReason ? <Pressable style={styles.blockReason} onPress={() => Alert.alert("Safety 차단", snapshot.safety.blockReason ?? "-")}><Text style={styles.blockReasonLabel}>차단 근거</Text><Text style={styles.blockReasonText}>{snapshot.safety.blockReason}</Text></Pressable> : null}
     </ScrollView>
   );
 }
@@ -215,18 +215,18 @@ function SettingsScreen({
   const notificationRows = [
     {
       key: "watchEnabled" as const,
-      label: "판단 불가 알림",
-      description: "품질 부족·다중 화자 확인",
+      label: "관찰 지속 알림",
+      description: "장시간 체류·재접근 확인",
     },
     {
       key: "warningEnabled" as const,
-      label: "검증 오류 알림",
-      description: "싱크·모델 오류 확인",
+      label: "Safety 차단 알림",
+      description: "BLOCK 판정 확인",
     },
     {
       key: "criticalEnabled" as const,
-      label: "차단 알림",
-      description: "재생·불일치 요청 차단",
+      label: "강제 차단 알림",
+      description: "ABORT·Tamper·E-stop 확인",
     },
   ];
   const storageRatio =
@@ -240,14 +240,14 @@ function SettingsScreen({
       <Text style={styles.pageTitle}>알림 및 저장</Text>
 
       <View style={styles.settingsSectionHeader}>
-        <Text style={styles.settingsSectionTitle}>검증 알림</Text>
+        <Text style={styles.settingsSectionTitle}>Door Hub 알림</Text>
         <Text style={styles.settingsSectionCaption}>반복 제한 {notificationPreferences.cooldownMinutes}분</Text>
       </View>
       <View style={styles.settingsCard}>
         <View style={styles.settingRow}>
           <View>
             <Text style={styles.settingLabelStrong}>전체 알림</Text>
-            <Text style={styles.settingDescription}>판단 불가·차단 결과 알림</Text>
+            <Text style={styles.settingDescription}>관찰·Safety 결과 알림</Text>
           </View>
           <Switch
             value={notificationPreferences.enabled}
@@ -552,8 +552,8 @@ function SettingsScreen({
 
 function RiskZeroApp() {
   const [activeTab, setActiveTab] = useState<TabId>("home");
-  const [scenarioId, setScenarioId] = useState("pass");
-  const [snapshot, setSnapshot] = useState<SystemSnapshot | null>(null);
+  const [scenarioId, setScenarioId] = useState("delivery");
+  const [snapshot, setSnapshot] = useState<DoorHubSnapshot | null>(null);
   const [events, setEvents] = useState<EventLogItem[]>([]);
   const [source, setSource] = useState<"api" | "fallback">("fallback");
   const [refreshing, setRefreshing] = useState(false);
@@ -570,14 +570,15 @@ function RiskZeroApp() {
 
   const load = useCallback(async (nextScenario = scenarioId) => {
     setRefreshing(true);
-    const result = await getSnapshot(nextScenario);
+    const result = await getDoorHubSnapshot(nextScenario);
     setSnapshot(result.snapshot);
     setSource(result.source);
     try {
-      await saveSnapshotLocally(result.snapshot);
+      await saveDoorHubSnapshotLocally(result.snapshot);
       const localEvents = await loadRecentEvents();
+      const currentDoorHubEvents = doorHubSnapshotToEventLogItems(result.snapshot);
       const mergedEvents = new Map(
-        result.snapshot.recentEvents.map((event) => [event.id, event]),
+        currentDoorHubEvents.map((event) => [event.id, event]),
       );
       for (const event of localEvents) mergedEvents.set(event.id, event);
       setEvents(
@@ -593,13 +594,11 @@ function RiskZeroApp() {
       );
       setVideoStorage(await loadVideoStorageSummary());
       setDevices(await loadDevices());
-      void dispatchRiskNotification(
-        snapshotToEventLogItem(result.snapshot),
-        notificationPreferences,
-      );
+      const latestEvent = currentDoorHubEvents[0];
+      if (latestEvent) void dispatchRiskNotification(latestEvent, notificationPreferences);
     } catch (error) {
       console.warn("Failed to save the mobile snapshot.", error);
-      setEvents(result.snapshot.recentEvents);
+      setEvents(doorHubSnapshotToEventLogItems(result.snapshot));
     }
     setRefreshing(false);
   }, [notificationPreferences, scenarioId]);
@@ -608,7 +607,7 @@ function RiskZeroApp() {
     void (async () => {
       setNotificationPreferences(await loadNotificationPreferences());
       setNotificationPermission(await initializeRiskNotifications());
-      await load("pass");
+      await load("delivery");
     })();
   }, []);
 
@@ -618,7 +617,7 @@ function RiskZeroApp() {
   }, [load]);
 
   const content = useMemo(() => {
-    if (!snapshot) return <View style={styles.loading}><ActivityIndicator color="#9FE3CC" size="large" /><Text style={styles.loadingText}>검증 상태를 불러오는 중</Text></View>;
+    if (!snapshot) return <View style={styles.loading}><ActivityIndicator color="#9FE3CC" size="large" /><Text style={styles.loadingText}>Door Hub 상태를 불러오는 중</Text></View>;
     if (activeTab === "events") {
       return (
         <EventsScreen
@@ -671,8 +670,8 @@ function RiskZeroApp() {
     <SafeAreaView edges={["top", "bottom"]} style={styles.safeArea}>
       <StatusBar style="light" />
       <View style={styles.header}>
-        <View style={styles.brandRow}><View style={styles.brandMark}><Text style={styles.brandMarkText}>RZ</Text></View><View><Text style={styles.brandName}>RISK-ZERO</Text><Text style={styles.brandSub}>시청각 발화 검증</Text></View></View>
-        <View style={styles.demoBadge}><View style={styles.onlineDot} /><Text style={styles.demoBadgeText}>DEMO</Text></View>
+        <View style={styles.brandRow}><View style={styles.brandMark}><Text style={styles.brandMarkText}>RZ</Text></View><View><Text style={styles.brandName}>RISK-ZERO</Text><Text style={styles.brandSub}>Door Hub Monitor</Text></View></View>
+        <View style={styles.demoBadge}><View style={styles.onlineDot} /><Text style={styles.demoBadgeText}>{source === "api" ? "API" : "DEMO"}</Text></View>
       </View>
       <View style={styles.content}>{content}</View>
       <View style={styles.tabBar}>
@@ -709,6 +708,7 @@ const styles = StyleSheet.create({
   heroCopy: { paddingTop: 15 },
   eyebrow: { color: "#9FE3CC", fontSize: 9, fontWeight: "800", letterSpacing: 1.5 },
   title: { color: "#F4F7F7", fontSize: 34, lineHeight: 40, fontWeight: "800", letterSpacing: -1.5, marginTop: 8 },
+  heroDescription: { color: "#7E8D8F", fontSize: 11, lineHeight: 17, marginTop: 8 },
   pageTitle: { color: "#F4F7F7", fontSize: 30, lineHeight: 38, fontWeight: "800", letterSpacing: -1.2, marginTop: 10 },
   scenarioRow: { gap: 8, paddingVertical: 18 },
   scenarioButton: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: "#243234", backgroundColor: "#0F1718", outlineWidth: 0 },
@@ -716,12 +716,31 @@ const styles = StyleSheet.create({
   scenarioText: { color: "#9DAAAB", fontSize: 11, fontWeight: "700" },
   scenarioTextActive: { color: "#07110E" },
   riskCard: { borderWidth: 1, borderRadius: 20, padding: 18, backgroundColor: "#11191A" },
+  safetyFaultCard: { borderColor: "#6A3338" },
   riskTopline: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   sectionLabel: { color: "#778587", fontSize: 9, fontWeight: "800", letterSpacing: 1.1 },
   riskLabel: { fontSize: 23, fontWeight: "800", marginTop: 5 },
+  safetyFaultText: { color: "#FF6C73" },
   sourceBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999 },
   sourceDot: { width: 5, height: 5, borderRadius: 99 },
   sourceText: { color: "#D5E0DF", fontSize: 8, fontWeight: "800", letterSpacing: .6 },
+  presenceRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", paddingVertical: 24 },
+  presenceCopy: { flex: 1 },
+  presenceCaption: { color: "#718082", fontSize: 9 },
+  presenceValue: { color: "#F4F7F7", fontSize: 30, fontWeight: "900", letterSpacing: -1.2, marginTop: 6 },
+  presenceZone: { color: "#9FE3CC", fontSize: 10, marginTop: 6 },
+  pirBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 99, backgroundColor: "#182224" },
+  hubMetricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  hubMetric: { width: "48.5%", minHeight: 74, borderRadius: 12, borderWidth: 1, borderColor: "#263234", padding: 13, justifyContent: "center" },
+  hubMetricValue: { color: "#EEF3F2", fontSize: 17, fontWeight: "900", marginTop: 6 },
+  safetyGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  safetyFlag: { width: "48.5%", minHeight: 52, flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 11, borderWidth: 1, borderColor: "#263234", backgroundColor: "#11191A", paddingHorizontal: 13 },
+  safetyFlagFault: { borderColor: "#6A3338", backgroundColor: "#211417" },
+  flagDot: { width: 7, height: 7, borderRadius: 7 },
+  safetyFlagText: { color: "#B9C5C4", fontSize: 10, fontWeight: "700" },
+  blockReason: { marginTop: 10, borderRadius: 12, borderWidth: 1, borderColor: "#6A3338", backgroundColor: "#211417", padding: 14 },
+  blockReasonLabel: { color: "#FF8B91", fontSize: 9, fontWeight: "900" },
+  blockReasonText: { color: "#D7B8BA", fontSize: 10, marginTop: 5 },
   scoreRow: { flexDirection: "row", alignItems: "center", gap: 18, paddingVertical: 24 },
   scoreCircle: { width: 126, height: 126, borderRadius: 70, borderWidth: 9, alignItems: "center", justifyContent: "center" },
   scoreNumber: { fontSize: 42, fontWeight: "900", letterSpacing: -2 },

@@ -22,6 +22,9 @@ const tables = database
   .map(({ name }) => name);
 
 console.log(`${tables.length} tables: ${tables.join(", ")}`);
-if (tables.length !== 18) {
-  throw new Error(`Expected 18 mobile tables, found ${tables.length}.`);
+if (tables.length !== 20) {
+  throw new Error(`Expected 20 mobile tables, found ${tables.length}.`);
+}
+for (const required of ["door_hub_events", "door_hub_event_reviews"]) {
+  if (!tables.includes(required)) throw new Error(`Missing mobile table: ${required}`);
 }

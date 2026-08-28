@@ -1,9 +1,12 @@
 import type {
   RiskLevel,
+  DoorHubEventRecord,
+  DoorHubSnapshot,
   SystemSnapshot,
   VerificationDecision,
   VerificationEvidence,
 } from "./types";
+import { recordsToDoorHubSnapshot, summarizeDoorHubRecord } from "./door-hub";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "";
 const API_CONFIGURED = API_BASE_URL.length > 0;
@@ -196,3 +199,56 @@ export async function getSnapshot(scenarioId: string): Promise<{ snapshot: Syste
 }
 
 export { API_BASE_URL, API_CONFIGURED };
+
+function doorHubFallback(scenarioId = "delivery"): DoorHubSnapshot {
+  const generatedAt = new Date().toISOString();
+  const base: DoorHubEventRecord = {
+    schemaVersion: "door-hub-event/1",
+    mode: "demo",
+    scenarioId,
+    generatedAt,
+    deviceId: "RZ-DOOR-HUB-DEMO-01",
+    session: { eventId: 1042, stage: "result-ready", pirActive: false, startedAt: new Date(Date.now() - 21_000).toISOString(), endedAt: new Date(Date.now() - 1_000).toISOString() },
+    vision: { status: "ready", visitorPresent: false, objectCount: 0, primaryZone: 6, zoneMask: 32, dwellMs: 18_200, backgroundChangeRatio: 0.12, backgroundChanged: true, snapshotReady: true, snapshotRef: null },
+    safety: { heartbeatOk: true, authArmed: false, decision: "none", blockReason: null, faultLatched: false, doorClosed: true, tamperDetected: false, emergencyStop: false, outputTarget: "led", outputActive: false },
+  };
+  if (scenarioId === "lingering") {
+    base.session = { ...base.session, eventId: 1043, stage: "capture", pirActive: true, endedAt: null };
+    base.vision = { ...base.vision, status: "capturing", visitorPresent: true, objectCount: 1, primaryZone: 8, zoneMask: 128, dwellMs: 67_400, backgroundChangeRatio: 0.02, backgroundChanged: false, snapshotReady: false };
+  } else if (scenarioId === "return") {
+    base.session = { ...base.session, eventId: 1044 };
+    base.vision = { ...base.vision, visitorPresent: true, objectCount: 1, primaryZone: 2, zoneMask: 34, dwellMs: 29_800 };
+    base.safety = { ...base.safety, decision: "block", blockReason: "reentry_review" };
+  } else if (scenarioId === "safety-abort") {
+    base.session = { ...base.session, eventId: 1045, stage: "fault" };
+    base.vision = { ...base.vision, status: "fault", snapshotReady: false };
+    base.safety = { ...base.safety, decision: "abort", blockReason: "tamper_detected", faultLatched: true, tamperDetected: true };
+  }
+  const previous: DoorHubEventRecord = {
+    ...base,
+    scenarioId: "previous",
+    generatedAt: new Date(Date.now() - 86 * 60_000).toISOString(),
+    session: { ...base.session, eventId: 1041, stage: "result-ready", pirActive: false },
+    vision: { ...base.vision, status: "ready", visitorPresent: false, objectCount: 0, primaryZone: 2, dwellMs: 11_000, backgroundChanged: false },
+    safety: { ...base.safety, decision: "none", blockReason: null, faultLatched: false, tamperDetected: false },
+  };
+  return { ...base, recentEvents: [summarizeDoorHubRecord(base), summarizeDoorHubRecord(previous)] };
+}
+
+export async function getDoorHubSnapshot(scenarioId: string): Promise<{ snapshot: DoorHubSnapshot; source: "api" | "fallback" }> {
+  if (!API_CONFIGURED) return { snapshot: doorHubFallback(scenarioId), source: "fallback" };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 1800);
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/door-hub-events?limit=20`, { signal: controller.signal });
+    if (!response.ok) throw new Error("Door Hub API unavailable");
+    const payload = await response.json() as { data?: DoorHubEventRecord[] };
+    const snapshot = recordsToDoorHubSnapshot(payload.data ?? []);
+    if (!snapshot) throw new Error("Door Hub event not found");
+    return { snapshot, source: "api" };
+  } catch {
+    return { snapshot: doorHubFallback(scenarioId), source: "fallback" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}

@@ -15,7 +15,7 @@ async function render(path = "/") {
   );
 }
 
-test("server-renders the RISK-ZERO trajectory monitoring page", async () => {
+test("server-renders the RISK-ZERO Door Hub monitoring page", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
@@ -23,15 +23,35 @@ test("server-renders the RISK-ZERO trajectory monitoring page", async () => {
   const html = await response.text();
   const visibleHtml = html.split('<script id="_R_">')[0];
   assert.match(visibleHtml, /RISK-ZERO/);
-  assert.match(visibleHtml, /방문 동선 확인/);
-  assert.match(visibleHtml, /배송 후 사각지대/);
-  assert.match(visibleHtml, /ESP32-CAM · Arty A7 연결 대기/);
-  assert.match(visibleHtml, /Arty A7-100T/);
-  assert.match(visibleHtml, /FPGA 연결/);
+  assert.match(visibleHtml, /현관 이벤트 모니터/);
+  assert.match(visibleHtml, /PIR · DVP Camera/);
+  assert.match(visibleHtml, /Arty Vision/);
+  assert.match(visibleHtml, /ESP32-S3 Door Hub/);
+  assert.match(visibleHtml, /SAFETY GATE/);
   assert.match(visibleHtml, /DEMO/);
-  assert.match(visibleHtml, /최근 동선 이벤트/);
+  assert.match(visibleHtml, /최근 Door Hub 이벤트/);
+  assert.doesNotMatch(visibleHtml, /보드 IP|FPGA 연결/);
   assert.doesNotMatch(visibleHtml, /SensorGateway|고정 더미 결과|교체 가능한 데이터 처리 흐름/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
+});
+
+test("rejects an invalid Door Hub payload before database access", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("door-hub-api-test", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  const response = await worker.fetch(
+    new Request("http://localhost/api/door-hub-events", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    }),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(response.status, 400);
+  const payload = await response.json();
+  assert.equal(payload.error.code, "INVALID_PAYLOAD");
+  assert.equal(payload.error.field, "schemaVersion");
 });
 
 test("keeps the audio-visual verification dashboard at /av", async () => {

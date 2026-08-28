@@ -1,6 +1,6 @@
-import { TrajectoryMonitor } from "./TrajectoryMonitor";
-import { buildTrajectorySnapshot } from "@/lib/trajectory-demo";
+import { DoorHubMonitor } from "./DoorHubMonitor";
+import { buildDoorHubDemo } from "@/lib/door-hub-demo";
 
 export default async function Home() {
-  return <TrajectoryMonitor initialSnapshot={await buildTrajectorySnapshot("normal-delivery")} />;
+  return <DoorHubMonitor initialSnapshot={buildDoorHubDemo("delivery")} />;
 }

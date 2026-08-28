@@ -79,6 +79,45 @@ export interface IncomingVerificationAttempt {
   };
 }
 
+export interface IncomingDoorHubEvent {
+  householdId: string;
+  deviceId: string;
+  schemaVersion: "door-hub-event/1";
+  generatedAt: string;
+  isDemo: boolean;
+  session: {
+    eventId: number;
+    stage: "idle" | "vision-wake" | "camera-init" | "capture" | "end-background" | "result-ready" | "vision-sleep" | "fault";
+    pirActive: boolean;
+    startedAt: string;
+    endedAt: string | null;
+  };
+  vision: {
+    status: "ready" | "capturing" | "sleeping" | "fault";
+    visitorPresent: boolean;
+    objectCount: number;
+    primaryZone: number | null;
+    zoneMask: number;
+    dwellMs: number;
+    backgroundChangeRatio: number;
+    backgroundChanged: boolean;
+    snapshotReady: boolean;
+    snapshotRef: string | null;
+  };
+  safety: {
+    heartbeatOk: boolean;
+    authArmed: boolean;
+    decision: "none" | "allow" | "block" | "abort";
+    blockReason: string | null;
+    faultLatched: boolean;
+    doorClosed: boolean;
+    tamperDetected: boolean;
+    emergencyStop: boolean;
+    outputTarget: "led";
+    outputActive: boolean;
+  };
+}
+
 export class PayloadValidationError extends Error {
   constructor(
     message: string,
@@ -335,6 +374,74 @@ export function parseVerificationAttemptPayload(value: unknown): IncomingVerific
       output: readEnum(gate, "output", ["unlock_pulse", "lock_pulse", "none"] as const),
       reason: readString(gate, "reason", { required: true, maxLength: 180 })!,
       validUntil: readIsoDate(gate, "validUntil"),
+    },
+  };
+}
+
+export function parseDoorHubEventPayload(value: unknown): IncomingDoorHubEvent {
+  if (!isRecord(value)) throw new PayloadValidationError("요청 본문은 JSON 객체여야 합니다.");
+  const schemaVersion = readString(value, "schemaVersion", { required: true, maxLength: 40 });
+  if (schemaVersion !== "door-hub-event/1") {
+    throw new PayloadValidationError("schemaVersion은 door-hub-event/1이어야 합니다.", "schemaVersion");
+  }
+
+  const session = readRecord(value, "session");
+  const vision = readRecord(value, "vision");
+  const safety = readRecord(value, "safety");
+  const eventId = readNullableNumber(session, "eventId", { min: 0, integer: true });
+  const objectCount = readNullableNumber(vision, "objectCount", { min: 0, integer: true });
+  const primaryZone = readNullableNumber(vision, "primaryZone", { min: 1, max: 9, integer: true });
+  const zoneMask = readNullableNumber(vision, "zoneMask", { min: 0, max: 511, integer: true });
+  const dwellMs = readNullableNumber(vision, "dwellMs", { min: 0, integer: true });
+  const backgroundChangeRatio = readNullableNumber(vision, "backgroundChangeRatio", { min: 0, max: 1 });
+  if (eventId === null || objectCount === null || zoneMask === null || dwellMs === null || backgroundChangeRatio === null) {
+    throw new PayloadValidationError("eventId와 Vision 수치 필드는 null일 수 없습니다.");
+  }
+
+  const endedAtValue = session.endedAt;
+  const snapshotRefValue = vision.snapshotRef;
+  const blockReasonValue = safety.blockReason;
+  const outputTarget = readString(safety, "outputTarget", { required: true, maxLength: 16 });
+  if (outputTarget !== "led") {
+    throw new PayloadValidationError("첫 통합 출력은 led만 허용합니다.", "safety.outputTarget");
+  }
+
+  return {
+    householdId: readString(value, "householdId", { required: true, maxLength: 128 })!,
+    deviceId: readString(value, "deviceId", { required: true, maxLength: 128 })!,
+    schemaVersion: "door-hub-event/1",
+    generatedAt: readIsoDate(value, "generatedAt"),
+    isDemo: readBoolean(value, "isDemo"),
+    session: {
+      eventId,
+      stage: readEnum(session, "stage", ["idle", "vision-wake", "camera-init", "capture", "end-background", "result-ready", "vision-sleep", "fault"] as const),
+      pirActive: readBoolean(session, "pirActive"),
+      startedAt: readIsoDate(session, "startedAt"),
+      endedAt: endedAtValue === null ? null : readIsoDate(session, "endedAt"),
+    },
+    vision: {
+      status: readEnum(vision, "status", ["ready", "capturing", "sleeping", "fault"] as const),
+      visitorPresent: readBoolean(vision, "visitorPresent"),
+      objectCount,
+      primaryZone,
+      zoneMask,
+      dwellMs,
+      backgroundChangeRatio,
+      backgroundChanged: readBoolean(vision, "backgroundChanged"),
+      snapshotReady: readBoolean(vision, "snapshotReady"),
+      snapshotRef: snapshotRefValue === null || snapshotRefValue === undefined ? null : readString(vision, "snapshotRef", { maxLength: 300 })!,
+    },
+    safety: {
+      heartbeatOk: readBoolean(safety, "heartbeatOk"),
+      authArmed: readBoolean(safety, "authArmed"),
+      decision: readEnum(safety, "decision", ["none", "allow", "block", "abort"] as const),
+      blockReason: blockReasonValue === null || blockReasonValue === undefined ? null : readString(safety, "blockReason", { maxLength: 120 })!,
+      faultLatched: readBoolean(safety, "faultLatched"),
+      doorClosed: readBoolean(safety, "doorClosed"),
+      tamperDetected: readBoolean(safety, "tamperDetected"),
+      emergencyStop: readBoolean(safety, "emergencyStop"),
+      outputTarget: "led",
+      outputActive: readBoolean(safety, "outputActive"),
     },
   };
 }

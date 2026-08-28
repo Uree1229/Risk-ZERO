@@ -1,8 +1,8 @@
 # RISK-ZERO 데이터베이스 설계
 
-- 기준일: 2026-08-18
-- 모바일: SQLite v4, 18개 테이블
-- 웹: Cloudflare D1, 19개 테이블
+- 기준일: 2026-08-28
+- 모바일: SQLite v5, 20개 테이블
+- 웹: Cloudflare D1, 20개 테이블
 
 ## 저장 위치
 
@@ -10,22 +10,17 @@
 
 영상 바이너리는 DB에 넣지 않는다. DB에는 앱 전용 `localUri`, 형식, 크기, 길이, 체크섬과 촬영시각만 저장한다.
 
-현관 동선 기능도 같은 원칙을 사용한다. ESP32-CAM 원본 스트림은 DB에 넣지 않고, 로컬 처리기가 만든 후처리 영상과 좌표·구역·판정 수치만 저장한다. 현재 동선 화면은 DEMO이며 아래 테이블은 다음 마이그레이션에서 추가할 설계다.
+현재 Door Hub 기능도 같은 원칙을 사용한다. Camera 원본 스트림은 DB에 넣지 않고, FPGA가 만든 구역·체류·배경 변경·Safety 수치와 Snapshot 참조만 저장한다. 위험도 점수는 현재 Door Hub 이벤트의 필수 값이 아니다.
 
-## 현관 동선 추가 테이블 · 예정
+## Door Hub 추가 테이블 · 구현됨
 
 | 테이블 | 내용 |
 | --- | --- |
-| `trajectory_observations` | 장치·촬영시각·프레임 크기·진입/이탈/화면 인원·후처리 영상 ID·처리 소스 |
-| `person_tracks` | 관찰별 임시 사람 ID·진입/마지막 시각·입구/출구 구역·체류·평균 신뢰도 |
-| `trajectory_points` | 트랙별 순서·상대시간·정규화 x/y·구역 |
-| `trajectory_assessments` | NORMAL/WATCH/ALERT/INCONCLUSIVE·이상 점수·정책 버전 |
-| `trajectory_reasons` | 판정의 reason code 목록 |
-| `motion_frame_metrics` | FPGA frame ID·움직임 픽셀 수·중심점·bbox·배경 준비·손상 패킷 수 |
+| `door_hub_events` | D1의 전체 `door-hub-event/1` 세션·Vision·Safety 결과와 Snapshot 참조 |
+| `door_hub_events` (mobile) | 모바일에 필요한 인덱스 필드와 전체 payload JSON |
+| `door_hub_event_reviews` | Door Hub 이벤트의 사용자 분류·오탐·중요·메모 |
 
-좌표는 0부터 1 사이 실수로 저장해 ESP32-CAM 해상도가 바뀌어도 화면과 정책이 같은 계약을 사용한다. `trajectory_points`는 `(track_id, sequence)`를 고유 키로 두고, 관찰·트랙 삭제 시 하위 좌표와 판정을 함께 삭제한다.
-
-`motion_frame_metrics`는 Arty A7 시험용 진단값이다. 모든 5FPS 프레임을 영구 저장하지 않고 사건 전후의 표본이나 집계만 저장한다. 원본 GRAY8 UDP 프레임은 DB와 파일에 저장하지 않는다.
+D1은 `(device_id, external_event_id)`를 고유 키로 사용한다. 같은 event의 `capture` 상태와 `result-ready` 상태가 순서대로 들어오면 새 행을 만들지 않고 최신 상태로 갱신한다. 조회는 `(household_id, generated_at)` 인덱스를 사용한다.
 
 ## 시청각 검증 핵심 테이블
 
@@ -47,6 +42,7 @@
 ```mermaid
 erDiagram
     DEVICES ||--o{ SENSOR_EVENTS : produces
+    DEVICES ||--o{ DOOR_HUB_EVENTS : publishes
     DEVICES ||--o{ CONTROL_REQUESTS : receives
     CHALLENGE_SESSIONS o|--o| CONTROL_REQUESTS : binds
     SENSOR_EVENTS ||--o| PROCESSED_VIDEOS : includes
@@ -55,17 +51,13 @@ erDiagram
     VERIFICATION_ATTEMPTS ||--|| VERIFICATION_EVIDENCE : contains
     VERIFICATION_ATTEMPTS ||--o{ ACTUATION_LOGS : gates
     CONTROL_REQUESTS ||--o{ ACTUATION_LOGS : controls
-    SENSOR_EVENTS ||--o| TRAJECTORY_OBSERVATIONS : describes
-    TRAJECTORY_OBSERVATIONS ||--o{ PERSON_TRACKS : contains
-    PERSON_TRACKS ||--o{ TRAJECTORY_POINTS : samples
-    TRAJECTORY_OBSERVATIONS ||--o| TRAJECTORY_ASSESSMENTS : evaluated_by
-    TRAJECTORY_ASSESSMENTS ||--o{ TRAJECTORY_REASONS : explains
-    TRAJECTORY_OBSERVATIONS ||--o{ MOTION_FRAME_METRICS : measures
+    DOOR_HUB_EVENTS ||--o| DOOR_HUB_EVENT_REVIEWS : reviewed_as
 ```
 
 ## 중복·재전송
 
 - 이벤트: `(device_id, dedupe_key)`와 `(device_id, sequence)` 고유
+- Door Hub 이벤트: `(device_id, external_event_id)` 고유, 같은 event 상태는 upsert
 - 요청: `nonce` 고유
 - 검증: 이벤트당 하나의 `verification_attempt`
 - 영상: 이벤트당 하나의 최종 파일
@@ -106,7 +98,7 @@ erDiagram
 
 ## 마이그레이션
 
-- 모바일 `MOBILE_SCHEMA_VERSION = 4`: 앱 시작 시 `CREATE TABLE IF NOT EXISTS`로 검증 테이블 추가
-- 웹 `drizzle/0003_amused_jubilee.sql`: D1 검증 테이블 추가
+- 모바일 `MOBILE_SCHEMA_VERSION = 5`: Door Hub 이벤트와 사용자 검토 테이블 추가
+- 웹 `drizzle/0004_burly_mystique.sql`: D1 Door Hub 테이블·인덱스·DEMO 3건 추가
 - 이전 데이터는 legacy 위험 단계에서 PASS/BLOCK/INCONCLUSIVE 표시로만 변환
 - 이전 값을 실제 AV 모델 결과로 다시 쓰지 않으며 `is_demo`, model version으로 구분

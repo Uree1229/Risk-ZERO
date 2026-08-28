@@ -2,6 +2,7 @@ import type { EventLogItem, ResponseAction, SensorReading, SystemSnapshot } from
 import type {
   IncomingSensorEvent,
   IncomingSensorValue,
+  IncomingDoorHubEvent,
   IncomingVerificationAttempt,
   ReadingQuality,
 } from "@/lib/api-contract";
@@ -105,6 +106,39 @@ interface ActionRow {
   requested_at: string;
   completed_at: string | null;
   error_message: string | null;
+}
+
+interface DoorHubEventRow {
+  id: string;
+  external_device_id: string;
+  external_event_id: number;
+  schema_version: string;
+  stage: string;
+  pir_active: number;
+  started_at: string;
+  ended_at: string | null;
+  generated_at: string;
+  vision_status: string;
+  visitor_present: number;
+  object_count: number;
+  primary_zone: number | null;
+  zone_mask: number;
+  dwell_ms: number;
+  background_change_ratio: number;
+  background_changed: number;
+  snapshot_ready: number;
+  snapshot_ref: string | null;
+  heartbeat_ok: number;
+  auth_armed: number;
+  safety_decision: string;
+  block_reason: string | null;
+  fault_latched: number;
+  door_closed: number;
+  tamper_detected: number;
+  emergency_stop: number;
+  output_target: string;
+  output_active: number;
+  is_demo: number;
 }
 
 function parseJson<T>(value: string | null, fallback: T): T {
@@ -1011,4 +1045,166 @@ export function normalizeQuality(value: string): ReadingQuality {
   return (["good", "uncertain", "bad", "missing"] as string[]).includes(value)
     ? (value as ReadingQuality)
     : "uncertain";
+}
+
+export async function ingestDoorHubEvent(db: D1Database, input: IncomingDoorHubEvent) {
+  const device = await findDevice(db, input.householdId, input.deviceId);
+  if (!device) throw new RepositoryError("등록된 Door Hub를 찾을 수 없습니다.", 404, "DEVICE_NOT_FOUND");
+  if (input.safety.outputActive && input.safety.decision !== "allow") {
+    throw new RepositoryError("ALLOW가 아닌 Safety 판정에서는 LED를 켤 수 없습니다.", 409, "UNSAFE_GATE_RESULT");
+  }
+  if (input.safety.outputActive && (input.safety.faultLatched || input.safety.emergencyStop || input.safety.tamperDetected)) {
+    throw new RepositoryError("안전 입력 또는 고정 오류가 있는 동안 LED를 켤 수 없습니다.", 409, "UNSAFE_GATE_RESULT");
+  }
+
+  const existing = await db
+    .prepare("SELECT id FROM door_hub_events WHERE device_id = ? AND external_event_id = ? LIMIT 1")
+    .bind(device.id, input.session.eventId)
+    .first<{ id: string }>();
+  const id = existing?.id ?? `door_hub_${crypto.randomUUID()}`;
+  const now = new Date().toISOString();
+  const { session, vision, safety } = input;
+
+  await db
+    .prepare(
+      `INSERT INTO door_hub_events
+         (id, household_id, device_id, external_event_id, schema_version, stage,
+          pir_active, started_at, ended_at, generated_at, vision_status,
+          visitor_present, object_count, primary_zone, zone_mask, dwell_ms,
+          background_change_ratio, background_changed, snapshot_ready, snapshot_ref,
+          heartbeat_ok, auth_armed, safety_decision, block_reason, fault_latched,
+          door_closed, tamper_detected, emergency_stop, output_target, output_active,
+          is_demo, raw_payload_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(device_id, external_event_id) DO UPDATE SET
+         schema_version = excluded.schema_version,
+         stage = excluded.stage,
+         pir_active = excluded.pir_active,
+         started_at = excluded.started_at,
+         ended_at = excluded.ended_at,
+         generated_at = excluded.generated_at,
+         vision_status = excluded.vision_status,
+         visitor_present = excluded.visitor_present,
+         object_count = excluded.object_count,
+         primary_zone = excluded.primary_zone,
+         zone_mask = excluded.zone_mask,
+         dwell_ms = excluded.dwell_ms,
+         background_change_ratio = excluded.background_change_ratio,
+         background_changed = excluded.background_changed,
+         snapshot_ready = excluded.snapshot_ready,
+         snapshot_ref = excluded.snapshot_ref,
+         heartbeat_ok = excluded.heartbeat_ok,
+         auth_armed = excluded.auth_armed,
+         safety_decision = excluded.safety_decision,
+         block_reason = excluded.block_reason,
+         fault_latched = excluded.fault_latched,
+         door_closed = excluded.door_closed,
+         tamper_detected = excluded.tamper_detected,
+         emergency_stop = excluded.emergency_stop,
+         output_target = excluded.output_target,
+         output_active = excluded.output_active,
+         is_demo = excluded.is_demo,
+         raw_payload_json = excluded.raw_payload_json,
+         updated_at = excluded.updated_at`
+    )
+    .bind(
+      id,
+      input.householdId,
+      device.id,
+      session.eventId,
+      input.schemaVersion,
+      session.stage,
+      session.pirActive ? 1 : 0,
+      session.startedAt,
+      session.endedAt,
+      input.generatedAt,
+      vision.status,
+      vision.visitorPresent ? 1 : 0,
+      vision.objectCount,
+      vision.primaryZone,
+      vision.zoneMask,
+      vision.dwellMs,
+      vision.backgroundChangeRatio,
+      vision.backgroundChanged ? 1 : 0,
+      vision.snapshotReady ? 1 : 0,
+      vision.snapshotRef,
+      safety.heartbeatOk ? 1 : 0,
+      safety.authArmed ? 1 : 0,
+      safety.decision,
+      safety.blockReason,
+      safety.faultLatched ? 1 : 0,
+      safety.doorClosed ? 1 : 0,
+      safety.tamperDetected ? 1 : 0,
+      safety.emergencyStop ? 1 : 0,
+      safety.outputTarget,
+      safety.outputActive ? 1 : 0,
+      input.isDemo ? 1 : 0,
+      JSON.stringify(input),
+      now,
+      now
+    )
+    .run();
+
+  return { id, eventId: session.eventId, updated: Boolean(existing) };
+}
+
+export async function listDoorHubEvents(db: D1Database, householdId: string, limit = 30) {
+  const rows = await results<DoorHubEventRow>(
+    db
+      .prepare(
+        `SELECT e.id, d.external_device_id, e.external_event_id, e.schema_version,
+                e.stage, e.pir_active, e.started_at, e.ended_at, e.generated_at,
+                e.vision_status, e.visitor_present, e.object_count, e.primary_zone,
+                e.zone_mask, e.dwell_ms, e.background_change_ratio,
+                e.background_changed, e.snapshot_ready, e.snapshot_ref,
+                e.heartbeat_ok, e.auth_armed, e.safety_decision, e.block_reason,
+                e.fault_latched, e.door_closed, e.tamper_detected, e.emergency_stop,
+                e.output_target, e.output_active, e.is_demo
+           FROM door_hub_events e
+           JOIN devices d ON d.id = e.device_id
+          WHERE e.household_id = ?
+          ORDER BY e.generated_at DESC
+          LIMIT ?`
+      )
+      .bind(householdId, limit)
+  );
+
+  return rows.map((row) => ({
+    schemaVersion: "door-hub-event/1" as const,
+    mode: row.is_demo === 1 ? ("demo" as const) : ("live" as const),
+    scenarioId: row.is_demo === 1 ? "database-demo" : "live",
+    generatedAt: asIso(row.generated_at),
+    deviceId: row.external_device_id,
+    session: {
+      eventId: row.external_event_id,
+      stage: row.stage as "idle" | "vision-wake" | "camera-init" | "capture" | "end-background" | "result-ready" | "vision-sleep" | "fault",
+      pirActive: row.pir_active === 1,
+      startedAt: asIso(row.started_at),
+      endedAt: row.ended_at ? asIso(row.ended_at) : null,
+    },
+    vision: {
+      status: row.vision_status as "ready" | "capturing" | "sleeping" | "fault",
+      visitorPresent: row.visitor_present === 1,
+      objectCount: row.object_count,
+      primaryZone: row.primary_zone,
+      zoneMask: row.zone_mask,
+      dwellMs: row.dwell_ms,
+      backgroundChangeRatio: row.background_change_ratio,
+      backgroundChanged: row.background_changed === 1,
+      snapshotReady: row.snapshot_ready === 1,
+      snapshotRef: row.snapshot_ref,
+    },
+    safety: {
+      heartbeatOk: row.heartbeat_ok === 1,
+      authArmed: row.auth_armed === 1,
+      decision: row.safety_decision as "none" | "allow" | "block" | "abort",
+      blockReason: row.block_reason,
+      faultLatched: row.fault_latched === 1,
+      doorClosed: row.door_closed === 1,
+      tamperDetected: row.tamper_detected === 1,
+      emergencyStop: row.emergency_stop === 1,
+      outputTarget: "led" as const,
+      outputActive: row.output_active === 1,
+    },
+  }));
 }

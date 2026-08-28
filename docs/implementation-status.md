@@ -24,9 +24,9 @@
 | Motion core | background difference, threshold, count·sum·bbox 기존 RTL | DVP stream 직접 연결 미구현 |
 | Camera control | 요구 신호와 시험 순서 문서화 | 모델 미정, XCLK/SCCB/PWDN/RESET·async FIFO 미구현 |
 | Vision 기능 | 기존 중심점·동선 정책 DEMO 유지 | 3×3 zone·timeline·B_end·Snapshot의 FPGA 통합 미구현 |
-| Door Hub | 책임·상태·안전/데이터면 분리 문서화 | PIR·SPI·GPIO firmware source 미작성 |
+| Door Hub | C++ 상태 코어와 Python 기준 구현, event id·stale result·LED Safety 불변식 작성 | PIR·SPI·GPIO·Wi-Fi 어댑터 미작성 |
 | Result/Snapshot link | packet 필드 초안 | SPI register·CRC·DATA_READY 미결정·미구현 |
-| Web/Mobile | DEMO, 캘린더·상세·영상 자리, DB/API 기존 구현 | 새 Door Hub 결과·Snapshot 미연결 |
+| Web/Mobile | `door-hub-event/1`, Door Hub 화면, D1 API·migration, 모바일 SQLite v5·이벤트 변환 구현 | 실제 Door Hub와 Snapshot 파일 미연결 |
 | AV 검증 | challenge·정책·MockActuator·수집 DEMO | 실제 SyncNet/TalkNet/ASVspoof/ASR 미연결 |
 
 ## 이전 구조에서 검증된 참고 자산
@@ -35,7 +35,7 @@
 - MicroBlaze lwIP UDP 재조립·AXI motion·HTTP JSON source
 - Vivado 2025.2 BRAM·DDR profile bitstream/XSA와 Vitis DDR ELF PC build
 - 기존 motion/AXI simulation과 Python protocol/reference 테스트
-- Edge 41개, 웹 렌더·API 11개, 모바일 단위·schema 검사 기록
+- Edge·웹·모바일의 이전 DEMO와 단위 검사 자산
 
 이 결과들은 삭제하지 않는다. 단, 새 DVP 직접 입력과 Door Hub SPI 구조의 실장 검증으로 계산하지 않는다.
 
@@ -47,6 +47,7 @@
 - 새 RTL source와 testbench가 Vivado runner에도 포함됨
 - 현재 PC 셸에는 Vivado가 없어 AMD XSIM 재실행과 새 구조 합성은 미실행
 - 실제 Camera와 Arty board 미연결
+- Edge 전체 45개, 웹 13개, 모바일 24개 테스트와 SQLite schema 검사 통과
 
 ## 다음 우선순위
 
@@ -56,8 +57,8 @@
 4. Camera controller, grayscale와 async pixel FIFO를 구현한다.
 5. DVP stream을 motion core에 연결하고 `B_ref`를 검증한다.
 6. noise filter·3×3 zone·timeline·B_end·Snapshot buffer를 구현한다.
-7. Door Hub PIR event와 Safety GPIO·Vision SPI 통신을 구현한다.
-8. LED로 전체 경로를 통합한 뒤 앱 결과·Snapshot을 연결한다.
+7. Door Hub 상태 코어에 PIR·Safety GPIO·Vision SPI·Wi-Fi 어댑터를 연결한다.
+8. LED로 전체 경로를 통합하고 실제 result/Snapshot을 현재 API에 전송한다.
 
 ## 주장하지 않는 범위
 

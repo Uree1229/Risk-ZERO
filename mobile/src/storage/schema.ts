@@ -1,5 +1,5 @@
 export const MOBILE_DATABASE_NAME = "risk-zero.db";
-export const MOBILE_SCHEMA_VERSION = 4;
+export const MOBILE_SCHEMA_VERSION = 5;
 
 export const MOBILE_SCHEMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -175,6 +175,38 @@ CREATE TABLE IF NOT EXISTS event_reviews (
   FOREIGN KEY (event_id) REFERENCES sensor_events(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS door_hub_events (
+  id TEXT PRIMARY KEY NOT NULL,
+  device_id TEXT NOT NULL,
+  external_event_id INTEGER NOT NULL,
+  stage TEXT NOT NULL
+    CHECK (stage IN (
+      'idle', 'vision-wake', 'camera-init', 'capture',
+      'end-background', 'result-ready', 'vision-sleep', 'fault'
+    )),
+  safety_decision TEXT NOT NULL
+    CHECK (safety_decision IN ('none', 'allow', 'block', 'abort')),
+  captured_at TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
+  UNIQUE (device_id, external_event_id)
+);
+
+CREATE TABLE IF NOT EXISTS door_hub_event_reviews (
+  event_id TEXT PRIMARY KEY NOT NULL,
+  category TEXT NOT NULL DEFAULT 'unclassified'
+    CHECK (category IN (
+      'unclassified', 'resident', 'visitor', 'delivery',
+      'suspicious', 'intrusion', 'other'
+    )),
+  is_false_alarm INTEGER NOT NULL DEFAULT 0 CHECK (is_false_alarm IN (0, 1)),
+  is_important INTEGER NOT NULL DEFAULT 0 CHECK (is_important IN (0, 1)),
+  memo TEXT NOT NULL DEFAULT '',
+  reviewed_at TEXT NOT NULL,
+  FOREIGN KEY (event_id) REFERENCES door_hub_events(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS risk_assessments (
   id TEXT PRIMARY KEY NOT NULL,
   incident_id TEXT NOT NULL,
@@ -261,6 +293,10 @@ CREATE INDEX IF NOT EXISTS actuation_logs_request_idx
   ON actuation_logs(request_id, valid_until DESC);
 CREATE INDEX IF NOT EXISTS event_reviews_category_idx
   ON event_reviews(category, is_important);
+CREATE INDEX IF NOT EXISTS door_hub_events_device_captured_idx
+  ON door_hub_events(device_id, captured_at DESC);
+CREATE INDEX IF NOT EXISTS door_hub_events_decision_captured_idx
+  ON door_hub_events(safety_decision, captured_at DESC);
 CREATE INDEX IF NOT EXISTS risk_assessments_incident_evaluated_idx
   ON risk_assessments(incident_id, evaluated_at DESC);
 CREATE INDEX IF NOT EXISTS response_actions_incident_executed_idx

@@ -9,7 +9,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "node --test src/events/calendar.test.mjs src/events/event-filter.test.mjs src/media/video-retention.test.mjs src/module/module-sync.test.mjs src/notifications/notification-policy.test.mjs src/storage/event-log.test.mjs",
+    "test": "node --test src/door-hub.test.mjs src/events/calendar.test.mjs src/events/event-filter.test.mjs src/media/video-retention.test.mjs src/module/module-sync.test.mjs src/notifications/notification-policy.test.mjs src/storage/event-log.test.mjs",
     "typecheck": "tsc --noEmit",
     "verify:schema": "node scripts/verify-schema.mjs"
   },

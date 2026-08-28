@@ -2,7 +2,7 @@
 name = "risk-zero-edge"
 version = "0.1.0"
 requires-python = ">=3.11"
-description = "Audio-visual speech verification gate for the RISK-ZERO capstone"
+description = "Door Hub event correlation, trajectory demo and audio-visual verification adapters for RISK-ZERO"
 
 [tool.unittest]
 start-directory = "tests"

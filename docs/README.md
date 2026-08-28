@@ -3,6 +3,7 @@
 ## 현재 주제 기준
 
 - [하드웨어 아키텍처 — 2026-08-28](RISK-ZERO_하드웨어_아키텍처_2026-08-28.md)
+- [Door Hub 소프트웨어 설계 — 2026-08-28](RISK-ZERO_Door_Hub_소프트웨어_설계_2026-08-28.md)
 - [새 PC·Codex 인수인계 — 2026-08-28](CODEX_HANDOFF.md)
 - [외부 DVP Camera 구동 순서](../fpga/arty-a7-100t/DIRECT_CAMERA_BRINGUP.md)
 - [FPGA Default-deny Safety Gate FSM 설계 v0.1](RISK-ZERO_FPGA_Safety_Gate_FSM_설계_v0.1.md)

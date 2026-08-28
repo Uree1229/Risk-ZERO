@@ -28,11 +28,12 @@ Reed #2 · Tamper · E-stop ───────┴→ Arty Safety Domain → �
 | `fpga/arty-a7-100t/rtl/risk_zero_safety_gate_fsm.sv` | auth/request/heartbeat toggle, Reed·Tamper·E-stop, default-deny pulse |
 | `fpga/arty-a7-100t/rtl/risk_zero_camera_dvp_rx.sv` | Camera PCLK domain DVP GRAY8 byte·frame geometry 수신 골격 |
 | `fpga/arty-a7-100t/rtl/risk_zero_motion_core.sv` | 배경 차분, threshold, 픽셀 누적과 bbox |
-| `firmware/door-hub/` | Door Hub 책임·상태·결정 필요 항목 |
+| `firmware/door-hub/` | 핀·SPI와 분리된 event id·stale result·Safety 상태 코어 |
+| `edge/risk_zero_door_hub/` | `door-hub-event/1` 기준 구현과 DEMO |
 | `edge/risk_zero_trajectory/` | 동선 정책과 PC DEMO |
 | `edge/risk_zero_av/` | 음성·입모양 검증 정책 DEMO |
-| `web/` | 동선·시청각 모니터와 API |
-| `mobile/` | 이벤트 캘린더·상세·영상·SQLite MVP |
+| `web/` | Door Hub 모니터, D1 저장 API, 이전 동선·시청각 DEMO |
+| `mobile/` | Door Hub 홈, 이벤트 캘린더·상세·영상·SQLite v5 MVP |
 
 ## 구현 경계
 
@@ -45,6 +46,7 @@ Reed #2 · Tamper · E-stop ───────┴→ Arty Safety Domain → �
 ## 주요 문서
 
 - [2026-08-28 현재 하드웨어 아키텍처](docs/RISK-ZERO_하드웨어_아키텍처_2026-08-28.md)
+- [Door Hub 소프트웨어 설계](docs/RISK-ZERO_Door_Hub_소프트웨어_설계_2026-08-28.md)
 - [현재 구현 현황](docs/implementation-status.md)
 - [새 PC·Codex 인수인계](docs/CODEX_HANDOFF.md)
 - [외부 DVP Camera 구동 순서](fpga/arty-a7-100t/DIRECT_CAMERA_BRINGUP.md)
@@ -76,6 +78,7 @@ pnpm start
 
 ```powershell
 python -m edge.risk_zero_trajectory --scenario hidden-after-delivery
+python -m edge.risk_zero_door_hub
 python -m edge.risk_zero_av --scenario live-pass
 python -m edge.risk_zero_av --scenario audio-replay
 ```

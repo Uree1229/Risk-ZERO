@@ -1,6 +1,6 @@
 # RISK-ZERO Edge
 
-ESP32-CAM 현관 동선 처리와 시청각 검증 게이트의 기준 구현입니다. 현재 저장소에는 실제 사람 탐지 모델과 SyncNet·TalkNet 가중치가 없으므로, 장치 연결 계약과 정책을 결정론적 데모 데이터로 검증합니다.
+Door Hub 이벤트 상관관계, 이전 ESP32-CAM 동선 처리와 시청각 검증 게이트의 기준 구현입니다. 현재 저장소에는 실제 사람 탐지 모델과 SyncNet·TalkNet 가중치가 없으므로, 장치 연결 계약과 정책을 결정론적 데모 데이터로 검증합니다.
 
 ## 실행
 
@@ -10,8 +10,11 @@ ESP32-CAM 현관 동선 처리와 시청각 검증 게이트의 기준 구현입
 python -m edge.risk_zero_av --scenario live-pass
 python -m edge.risk_zero_av --scenario audio-replay
 python -m edge.risk_zero_trajectory --scenario hidden-after-delivery
+python -m edge.risk_zero_door_hub
 python -m unittest discover -s edge/tests
 ```
+
+`risk_zero_door_hub`는 FPGA가 후처리한 수치와 Safety 상태를 `door-hub-event/1` JSON으로 묶는다. 단조 증가 event id를 유지하고 현재 event와 다른 과거 FPGA result는 거부한다. 실제 PIR debounce, GPIO와 SPI timing은 보드 어댑터에서 결정하므로 기준 구현에 임의 숫자를 넣지 않았다.
 
 ## ESP32-CAM 연결 확인
 

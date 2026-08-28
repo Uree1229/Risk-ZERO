@@ -9,17 +9,17 @@ export async function generateMetadata(): Promise<Metadata> {
   const imageUrl = `${protocol}://${host}/og-av.png`;
 
   return {
-    title: "RISK-ZERO | 현관 동선 모니터",
-    description: "현관 앞 사람의 진입·체류·이탈 경로와 이상행동을 확인하는 RISK-ZERO 모니터",
+    title: "RISK-ZERO | Door Hub Monitor",
+    description: "FPGA 영상 결과와 독립 Safety Gate 상태를 확인하는 RISK-ZERO Door Hub 모니터",
     openGraph: {
       title: "RISK-ZERO",
-      description: "현관 앞 사람의 이동 경로와 확인이 필요한 상황을 살펴보세요.",
-      images: [{ url: imageUrl, width: 1536, height: 1024, alt: "RISK-ZERO 현관 동선 모니터" }],
+      description: "현관 방문 세션과 FPGA Vision·Safety Gate 상태를 확인합니다.",
+      images: [{ url: imageUrl, width: 1536, height: 1024, alt: "RISK-ZERO Door Hub 모니터" }],
     },
     twitter: {
       card: "summary_large_image",
       title: "RISK-ZERO",
-      description: "현관 앞 사람의 이동 경로와 확인이 필요한 상황을 살펴보세요.",
+      description: "현관 방문 세션과 FPGA Vision·Safety Gate 상태를 확인합니다.",
       images: [imageUrl],
     },
   };

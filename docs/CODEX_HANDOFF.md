@@ -32,13 +32,13 @@ FPGA는 상시 구성 상태다. Safety Domain은 영상과 독립적으로 항�
 | Safety Gate | toggle auth/request/heartbeat, Reed·Tamper·E-stop, auth 만료·소비, pulse 상한 RTL·Icarus simulation 통과 |
 | DVP RX | PCLK domain GRAY8 byte·좌표·frame geometry RTL·Icarus simulation 통과 |
 | Motion core | 배경 차분·threshold·bbox 누적 기존 RTL, DVP 직접 연결 전 |
-| Door Hub | 책임·상태·결정 필요 항목 문서화, source 미작성 |
+| Door Hub | C++ 상태 코어와 Python `door-hub-event/1` 기준 구현 작성, 실제 pin/SPI adapter 전 |
 | Camera | 모델·전압·핀맵 미결정, controller/SCCB/CDC 미구현 |
 | Result/Snapshot | SPI 계약·buffer·Door Hub 중계 미구현 |
-| 웹·모바일 | 기존 DEMO·DB·API 유지, 실제 새 하드웨어 결과 미연결 |
+| 웹·모바일 | Door Hub 상태 화면, D1 API·seed, 모바일 SQLite v5 구현, 실제 하드웨어 미연결 |
 | AV 검증 | 정책 DEMO 유지, 실제 AI 미연결 |
 
-Python asset/reference 테스트 15개와 GitHub Actions Icarus Verilog의 motion·AXI·Safety·DVP simulation이 통과했다. AMD Vivado XSIM·합성·timing과 실물 Camera/Arty 검증은 별도로 남아 있다.
+Python FPGA asset/reference 테스트 15개와 GitHub Actions Icarus Verilog의 motion·AXI·Safety·DVP simulation이 통과했다. 소프트웨어는 Edge 45개, 웹 13개, 모바일 24개 테스트와 SQLite schema 검사를 통과했다. AMD Vivado XSIM·합성·timing과 실물 Camera/Arty 검증은 별도로 남아 있다.
 
 ## 이전 구현의 위치
 

@@ -11,6 +11,7 @@ import {
 import type {
   DeviceRegistrationInput,
   DeviceSummary,
+  DoorHubSnapshot,
   EventCategory,
   EventLogItem,
   EventReview,
@@ -22,6 +23,7 @@ import type {
 } from "../types";
 import { DEFAULT_NOTIFICATION_PREFERENCES } from "../notifications/notification-policy";
 import { formatEventTime } from "./event-log";
+import { doorHubSnapshotToEventLogItems } from "../door-hub";
 import {
   MOBILE_DATABASE_NAME,
   MOBILE_SCHEMA_SQL,
@@ -73,6 +75,55 @@ async function getDatabase() {
 
 export async function initializeLocalDatabase() {
   await getDatabase();
+}
+
+export async function saveDoorHubSnapshotLocally(snapshot: DoorHubSnapshot) {
+  const database = await getDatabase();
+  const eventId = `${snapshot.deviceId}:${snapshot.session.eventId}`;
+  const updatedAt = new Date().toISOString();
+  await database.withExclusiveTransactionAsync(async (transaction) => {
+    await transaction.runAsync(
+      `INSERT INTO devices
+         (id, display_name, provider, transport, created_at, updated_at)
+       VALUES (?, ?, 'DoorHubAPI', 'wifi', ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         provider = excluded.provider,
+         transport = excluded.transport,
+         updated_at = excluded.updated_at`,
+      snapshot.deviceId,
+      snapshot.deviceId,
+      snapshot.generatedAt,
+      updatedAt,
+    );
+    await transaction.runAsync(
+      `INSERT INTO device_status
+         (device_id, battery_percent, storage_used_bytes, storage_capacity_bytes, last_seen_at)
+       VALUES (?, NULL, NULL, NULL, ?)
+       ON CONFLICT(device_id) DO UPDATE SET last_seen_at = excluded.last_seen_at`,
+      snapshot.deviceId,
+      snapshot.generatedAt,
+    );
+    await transaction.runAsync(
+      `INSERT INTO door_hub_events
+         (id, device_id, external_event_id, stage, safety_decision,
+          captured_at, payload_json, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(device_id, external_event_id) DO UPDATE SET
+         stage = excluded.stage,
+         safety_decision = excluded.safety_decision,
+         captured_at = excluded.captured_at,
+         payload_json = excluded.payload_json,
+         updated_at = excluded.updated_at`,
+      eventId,
+      snapshot.deviceId,
+      snapshot.session.eventId,
+      snapshot.session.stage,
+      snapshot.safety.decision,
+      snapshot.generatedAt,
+      JSON.stringify(snapshot),
+      updatedAt,
+    );
+  });
 }
 
 export async function saveSnapshotLocally(snapshot: SystemSnapshot) {
@@ -496,7 +547,7 @@ export async function loadRecentEvents(limit = 50): Promise<EventLogItem[]> {
     limit,
   );
 
-  return rows.map((row) => ({
+  const legacyEvents = rows.map((row) => ({
     id: row.id,
     capturedAt: row.captured_at,
     occurredAt: formatEventTime(row.captured_at),
@@ -534,11 +585,83 @@ export async function loadRecentEvents(limit = 50): Promise<EventLogItem[]> {
           }
         : undefined,
   }));
+
+  const doorHubRows = await database.getAllAsync<{
+    id: string;
+    captured_at: string;
+    payload_json: string;
+    review_category: EventCategory | null;
+    review_is_false_alarm: number | null;
+    review_is_important: number | null;
+    review_memo: string | null;
+    review_reviewed_at: string | null;
+  }>(
+    `SELECT dhe.id, dhe.captured_at, dhe.payload_json,
+            dher.category AS review_category,
+            dher.is_false_alarm AS review_is_false_alarm,
+            dher.is_important AS review_is_important,
+            dher.memo AS review_memo,
+            dher.reviewed_at AS review_reviewed_at
+       FROM door_hub_events dhe
+       LEFT JOIN door_hub_event_reviews dher ON dher.event_id = dhe.id
+      ORDER BY dhe.captured_at DESC
+      LIMIT ?`,
+    limit,
+  );
+  const doorHubEvents = doorHubRows.flatMap((row) => {
+    try {
+      const snapshot = JSON.parse(row.payload_json) as DoorHubSnapshot;
+      const event = doorHubSnapshotToEventLogItems(snapshot)[0];
+      if (!event) return [];
+      return [{
+        ...event,
+        id: row.id,
+        capturedAt: row.captured_at,
+        review: row.review_category ? {
+          category: row.review_category,
+          isFalseAlarm: row.review_is_false_alarm === 1,
+          isImportant: row.review_is_important === 1,
+          memo: row.review_memo ?? "",
+          reviewedAt: row.review_reviewed_at ?? undefined,
+        } : undefined,
+      }];
+    } catch {
+      return [];
+    }
+  });
+
+  return [...doorHubEvents, ...legacyEvents]
+    .sort((left, right) => (right.capturedAt ?? "").localeCompare(left.capturedAt ?? ""))
+    .slice(0, limit);
 }
 
 export async function saveEventReview(eventId: string, review: EventReview) {
   const database = await getDatabase();
   const reviewedAt = new Date().toISOString();
+  const doorHubEvent = await database.getFirstAsync<{ id: string }>(
+    `SELECT id FROM door_hub_events WHERE id = ? LIMIT 1`,
+    eventId,
+  );
+  if (doorHubEvent) {
+    await database.runAsync(
+      `INSERT INTO door_hub_event_reviews
+         (event_id, category, is_false_alarm, is_important, memo, reviewed_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(event_id) DO UPDATE SET
+         category = excluded.category,
+         is_false_alarm = excluded.is_false_alarm,
+         is_important = excluded.is_important,
+         memo = excluded.memo,
+         reviewed_at = excluded.reviewed_at`,
+      eventId,
+      review.category,
+      review.isFalseAlarm ? 1 : 0,
+      review.isImportant ? 1 : 0,
+      review.memo.trim(),
+      reviewedAt,
+    );
+    return { ...review, memo: review.memo.trim(), reviewedAt };
+  }
   const result = await database.runAsync(
     `INSERT INTO event_reviews
        (event_id, category, is_false_alarm, is_important, memo, reviewed_at)

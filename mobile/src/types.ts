@@ -167,3 +167,65 @@ export interface SystemSnapshot {
   response: { status: "preview"; actions: string[]; message: string };
   recentEvents: EventLogItem[];
 }
+
+export type DoorHubStage =
+  | "idle"
+  | "vision-wake"
+  | "camera-init"
+  | "capture"
+  | "end-background"
+  | "result-ready"
+  | "vision-sleep"
+  | "fault";
+
+export type SafetyDecision = "none" | "allow" | "block" | "abort";
+
+export interface DoorHubEventSummary {
+  eventId: number;
+  occurredAt: string;
+  title: string;
+  detail: string;
+  decision: SafetyDecision;
+}
+
+export interface DoorHubSnapshot {
+  schemaVersion: "door-hub-event/1";
+  mode: "demo" | "live";
+  scenarioId: string;
+  generatedAt: string;
+  deviceId: string;
+  session: {
+    eventId: number;
+    stage: DoorHubStage;
+    pirActive: boolean;
+    startedAt: string;
+    endedAt: string | null;
+  };
+  vision: {
+    status: "ready" | "capturing" | "sleeping" | "fault";
+    visitorPresent: boolean;
+    objectCount: number;
+    primaryZone: number | null;
+    zoneMask: number;
+    dwellMs: number;
+    backgroundChangeRatio: number;
+    backgroundChanged: boolean;
+    snapshotReady: boolean;
+    snapshotRef: string | null;
+  };
+  safety: {
+    heartbeatOk: boolean;
+    authArmed: boolean;
+    decision: SafetyDecision;
+    blockReason: string | null;
+    faultLatched: boolean;
+    doorClosed: boolean;
+    tamperDetected: boolean;
+    emergencyStop: boolean;
+    outputTarget: "led";
+    outputActive: boolean;
+  };
+  recentEvents: DoorHubEventSummary[];
+}
+
+export type DoorHubEventRecord = Omit<DoorHubSnapshot, "recentEvents">;
