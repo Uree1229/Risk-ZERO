@@ -33,7 +33,7 @@ FPGA는 상시 구성 상태다. Safety Domain은 영상과 독립적으로 항�
 | DVP RX | PCLK domain GRAY8 byte·좌표·frame geometry RTL·Icarus·Vivado XSIM 통과 |
 | Motion core | 배경 차분·threshold·bbox 누적 기존 RTL, DVP 직접 연결 전 |
 | Door Hub | C++ 상태 코어와 Python `door-hub-event/1` 기준 구현 작성, 실제 pin/SPI adapter 전 |
-| Camera | Voltly `VLT-CAM003` OV7670 실물 식별. 25 MHz XCLK, 수정된 2-transmission SCCB, PID/VER probe, YUV422 Y 추출, async FIFO RTL·Vivado XSIM 통과. top/XDC·실물 검증 전 |
+| Camera | Voltly `VLT-CAM003` OV7670 실물 식별. 25 MHz XCLK primitive, 수정된 2-transmission SCCB, PID/VER probe, YUV422 Y 추출, async FIFO RTL·Vivado XSIM 통과. 저항 보호용 12.5MHz SCCB-only top/XDC bitstream 생성 완료, 실물 검증 전 |
 | Result/Snapshot | SPI 계약·buffer·Door Hub 중계 미구현 |
 | 웹·모바일 | Door Hub 상태 화면, D1 API·seed, 모바일 SQLite v5 구현, 실제 하드웨어 미연결 |
 | AV 검증 | 정책 DEMO 유지, 실제 AI 미연결 |
@@ -70,12 +70,13 @@ python -m unittest discover -s fpga/arty-a7-100t/tests -v
 
 1. 외부 DVP Camera 모델·모듈 회로도·전압·핀맵 확정
 2. 보호 회로 준비 뒤 XCLK·SCCB ID·PCLK/VSYNC/HREF를 장비로 확인
-3. 검증된 SCCB ID·YUV422·async FIFO primitive를 Camera top에 연결
-4. 실측 byte order에 맞는 init table을 확정하고 기존 motion core를 DVP stream에 연결
-5. 3×3 zone, timeline, B_end 비교와 Snapshot buffer 구현
-6. Door Hub PIR event와 SPI result link 구현
-7. LED로 수직 통합
-8. 앱 결과·Snapshot 연결
+3. `DIRECT_CAMERA_BRINGUP.md` 2.1의 최소 저항 배선 사진을 검토한 뒤 ID-probe bitstream으로 PID/VER 확인
+4. 검증된 YUV422·async FIFO primitive를 전체 Camera top에 연결
+5. 실측 byte order에 맞는 init table을 확정하고 기존 motion core를 DVP stream에 연결
+6. 3×3 zone, timeline, B_end 비교와 Snapshot buffer 구현
+7. Door Hub PIR event와 SPI result link 구현
+8. LED로 수직 통합
+9. 앱 결과·Snapshot 연결
 
 ## 새 Codex에 전달할 문장
 

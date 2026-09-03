@@ -67,6 +67,7 @@ ESP32-CAM과 Arty는 같은 공유기에 연결한다. ESP32-CAM은 Wi-Fi, Arty 
 ```powershell
 vivado -mode batch -source fpga/arty-a7-100t/vivado/run_rtl_tests.tcl
 vivado -mode batch -source fpga/arty-a7-100t/vivado/run_camera_primitive_synthesis.tcl
+vivado -mode batch -source fpga/arty-a7-100t/vivado/build_ov7670_probe.tcl
 vivado -mode batch -source fpga/arty-a7-100t/vivado/create_arty_bram_system.tcl
 vivado -mode batch -source fpga/arty-a7-100t/vivado/build_arty_system.tcl
 vivado -mode batch -source fpga/arty-a7-100t/vivado/create_arty_ddr_system.tcl

@@ -47,9 +47,10 @@
 - Windows Vivado 2025.2에서 motion core·AXI wrapper·새 Safety Gate·DVP RX XSIM 4개 통과(2026-09-03, 기준 commit `f3a7619`)
 - 같은 환경에서 parameterized 25 MHz Camera XCLK와 SCCB·OV7670 ID·YUV422·async FIFO를 포함한 전체 XSIM 9개 통과
 - 신규 SCCB·OV7670 ID·YUV422·async FIFO primitive의 Artix-7 OOC synthesis 통과(오류·경고 0건, FIFO distributed RAM 추론 확인)
+- 저항 보호용 12.5MHz XCLK·SCCB-only OV7670 ID probe top과 JA 전용 XDC 추가. Vivado 합성·배치·배선·bitstream 생성 통과, 내부 100MHz WNS `+5.002ns`(외부 I/O delay는 실측 전)
 - 팀원 Dashboard ZIP은 선별 검토했다. 상세 채택·제외 근거는 `docs/TEAM_CONTRIBUTION_REVIEW_2026-09-03.md`에 기록했다.
 - 새 구조의 Camera top 연결·Block Design·전체 place/route/timing은 미실행
-- 실제 Camera와 Arty board 미연결
+- 실제 Camera와 Arty board의 저항 배선·programming은 미실행
 - Edge 전체 45개, 웹 13개, 모바일 24개 테스트와 SQLite schema 검사 통과
 
 ## 다음 우선순위

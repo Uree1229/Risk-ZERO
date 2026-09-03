@@ -46,6 +46,50 @@ Safety test가 실패하면 Camera 연결을 진행하지 않는다.
 5. PCLK, VSYNC, HREF 활동
 6. 알려진 해상도의 line/frame pixel count
 
+### 2.1 보호 저항 기반 최소 ID probe
+
+2026-09-03 현재 level shifter와 멀티미터가 없으므로 이 연결은 실험용
+bring-up에만 사용한다. OV7670 센서의 정상 I/O 전원 상한은 3.0V이며 Arty
+Pmod는 3.3V이므로 FPGA에서 Camera로 가는 신호를 직접 연결하지 않는다.
+영상 데이터 선은 아직 연결하지 않고 `XCLK`, `SIOC/SCL`, `SIOD/SDA`만
+시험한다.
+
+모든 전원을 뺀 상태에서 다음과 같이 연결한다. 아래 `JA1` 등의 이름은
+커넥터 위치를 눈대중으로 세지 말고 Arty 보드 실크와 공식 Pmod pin 번호로
+확인한다.
+
+| 기능 | Arty A7-100T | VLT-CAM003 | 저항 네트워크 |
+| --- | --- | --- | --- |
+| 전원 | JA6 또는 JA12 `3.3V` | `3.3V` | 직접 연결 |
+| 공통 접지 | JA5 또는 JA11 `GND` | `GND` | 직접 연결. 아래 모든 분압 접지도 여기에 연결 |
+| Camera clock | JA1 | `XCLK` | JA1 → 220Ω → XCLK 노드, XCLK 노드 → 1kΩ → GND |
+| SCCB clock | JA2 | `SIOC` 또는 `SCL` | JA2 → 1kΩ → SIOC 노드, SIOC 노드 → 4.7kΩ → GND |
+| SCCB data | JA3 | `SIOD` 또는 `SDA` | JA3와 SIOD 노드를 직접 연결, 3.3V → 2kΩ → SIOD 노드, SIOD 노드 → 4.7kΩ → GND |
+| Reset 해제 | 연결하지 않음 | `RESET`/`RET` | 3.3V → 2kΩ → RESET 노드, RESET 노드 → 4.7kΩ → GND |
+| Power-down 해제 | 연결하지 않음 | `PWDN` | GND에 직접 연결 |
+
+`D[7:0]`, `VS/VSYNC`, `HS/HREF`, `PCLK`는 이 단계에서 연결하지 않는다.
+XCLK 배선은 가능한 한 5cm 이내로 짧게 하고 Camera와 Arty의 GND를 반드시
+공유한다. 저항 분압은 최종 제품의 level shifter를 대신하지 않는다.
+
+최소 probe bitstream은 다음 명령으로 다시 만들 수 있다.
+
+```powershell
+vivado -mode batch -source fpga/arty-a7-100t/vivado/build_ov7670_probe.tcl
+```
+
+- top: `risk_zero_ov7670_probe_top`
+- XCLK: 첫 breadboard 시험용 12.5MHz
+- JA1: XCLK, JA2: SIOC/SCL, JA3: open-drain SIOD/SDA
+- BTN0: reset 후 자동 재검사
+- LD4: PID/VER 일치, LD5: ID 또는 bus fault, LD6: controller timeout, LD7: probe busy
+- PID/VER 기대값: `0x76`/`0x73`
+
+2026-09-03 Windows Vivado 2025.2에서 합성·배치·배선·bitstream 생성과
+DRC가 통과했고 내부 100MHz 경로의 route WNS는 `+5.002ns`였다. Camera 실측
+timing 전이므로 외부 I/O delay는 아직 sign-off하지 않았다. 실물 프로그램은
+위 배선 사진을 검토한 뒤 진행한다.
+
 5V 신호를 FPGA GPIO에 직접 연결하지 않는다. Camera 전원을 FPGA GPIO에서 공급하지 않는다.
 
 ## 3. DVP RX simulation

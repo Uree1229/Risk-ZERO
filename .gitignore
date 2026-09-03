@@ -19,6 +19,8 @@ firmware/esp32-cam/.pio/
 firmware/door-hub/.pio/
 fpga/arty-a7-100t/build/
 fpga/arty-a7-100t/.Xil/
+.Xil/
+clockInfo.txt
 *.jou
 *.str
 dfx_runtime.txt

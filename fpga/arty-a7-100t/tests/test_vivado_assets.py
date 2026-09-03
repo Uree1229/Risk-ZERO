@@ -175,6 +175,28 @@ class VivadoAssetTests(unittest.TestCase):
         ):
             self.assertIn(top_module, synthesis)
 
+    def test_ov7670_probe_is_minimal_and_fully_constrained(self) -> None:
+        top = (FPGA_ROOT / "rtl" / "risk_zero_ov7670_probe_top.sv").read_text(
+            encoding="utf-8"
+        )
+        constraints = (
+            FPGA_ROOT / "constraints" / "risk_zero_ov7670_probe_arty_a7_100.xdc"
+        ).read_text(encoding="utf-8")
+        build = (FPGA_ROOT / "vivado" / "build_ov7670_probe.tcl").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(".XCLK_HZ(12_500_000)", top)
+        self.assertIn("assign cam_siod = siod_drive_low ? 1'b0 : 1'bz", top)
+        self.assertIn("led[0] = camera_ready", top)
+        self.assertNotIn("risk_zero_camera_dvp_rx", top)
+        for package_pin in ("E3", "D9", "G13", "B11", "A11", "H5", "J5", "T9", "T10"):
+            self.assertIn(f"PACKAGE_PIN {package_pin}", constraints)
+        self.assertNotIn("PULLUP", constraints)
+        self.assertIn("risk_zero_ov7670_probe_top", build)
+        self.assertIn("write_bitstream -force", build)
+        self.assertIn("$wns < 0.0", build)
+
     def test_tcl_files_have_balanced_delimiters(self) -> None:
         for script_path in (FPGA_ROOT / "vivado").glob("*.tcl"):
             script = script_path.read_text(encoding="utf-8")
