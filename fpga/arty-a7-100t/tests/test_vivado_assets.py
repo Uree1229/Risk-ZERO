@@ -189,6 +189,9 @@ class VivadoAssetTests(unittest.TestCase):
         self.assertIn(".XCLK_HZ(12_500_000)", top)
         self.assertIn("assign cam_siod = siod_drive_low ? 1'b0 : 1'bz", top)
         self.assertIn("led[0] = camera_ready", top)
+        self.assertIn("camera_pid == 8'hff", top)
+        self.assertIn("camera_pid == 8'h00", top)
+        self.assertIn("sccb_timeout_fault ||", top)
         self.assertNotIn("risk_zero_camera_dvp_rx", top)
         for package_pin in ("E3", "D9", "G13", "B11", "A11", "H5", "J5", "T9", "T10"):
             self.assertIn(f"PACKAGE_PIN {package_pin}", constraints)

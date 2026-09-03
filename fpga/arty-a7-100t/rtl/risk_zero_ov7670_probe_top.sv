@@ -4,8 +4,9 @@
 //
 // This top intentionally exposes only XCLK and SCCB. It does not configure
 // image format registers or connect the DVP pixel bus. BTN0 restarts the
-// power-on delay and probe. LED0=ID ready, LED1=ID/bus fault,
-// LED2=controller timeout, LED3=probe busy.
+// power-on delay and probe. On failure the LEDs classify the sampled PID:
+// LED1=0xFF (SDA stayed high), LED2=0x00 (SDA stayed low),
+// LED3=another ID mismatch or an internal controller timeout.
 module risk_zero_ov7670_probe_top (
     input  wire       clk100mhz,
     input  wire       btn_reset,
@@ -40,14 +41,15 @@ module risk_zero_ov7670_probe_top (
     wire unused_camera_fault;
     wire unused_sccb_busy;
     wire unused_ninth_bit;
-    wire [7:0] unused_camera_pid;
+    wire [7:0] camera_pid;
     wire [7:0] unused_camera_version;
 
     assign cam_siod = siod_drive_low ? 1'b0 : 1'bz;
     assign led[0] = camera_ready;
-    assign led[1] = id_fault;
-    assign led[2] = sccb_timeout_fault;
-    assign led[3] = probe_busy;
+    assign led[1] = id_fault && (camera_pid == 8'hff);
+    assign led[2] = id_fault && (camera_pid == 8'h00);
+    assign led[3] = sccb_timeout_fault ||
+                    (id_fault && camera_pid != 8'hff && camera_pid != 8'h00);
 
     always @(posedge clk100mhz) begin
         if (btn_reset) begin
@@ -118,7 +120,7 @@ module risk_zero_ov7670_probe_top (
         .camera_fault(unused_camera_fault),
         .id_fault(id_fault),
         .sccb_timeout_fault(sccb_timeout_fault),
-        .camera_pid(unused_camera_pid),
+        .camera_pid(camera_pid),
         .camera_version(unused_camera_version)
     );
 

@@ -82,13 +82,18 @@ vivado -mode batch -source fpga/arty-a7-100t/vivado/build_ov7670_probe.tcl
 - XCLK: 첫 breadboard 시험용 12.5MHz
 - JA1: XCLK, JA2: SIOC/SCL, JA3: open-drain SIOD/SDA
 - BTN0: reset 후 자동 재검사
-- LD4: PID/VER 일치, LD5: ID 또는 bus fault, LD6: controller timeout, LD7: probe busy
+- LD4: PID/VER 일치, LD5: PID `0xFF`(SDA high 고정), LD6: PID `0x00`(SDA low 고정), LD7: 그 밖의 ID 불일치 또는 내부 timeout
 - PID/VER 기대값: `0x76`/`0x73`
 
-2026-09-03 Windows Vivado 2025.2에서 합성·배치·배선·bitstream 생성과
-DRC가 통과했고 내부 100MHz 경로의 route WNS는 `+5.002ns`였다. Camera 실측
-timing 전이므로 외부 I/O delay는 아직 sign-off하지 않았다. 실물 프로그램은
-위 배선 사진을 검토한 뒤 진행한다.
+2026-09-03 Windows Vivado 2025.2에서 최신 PID 분류 top의 합성·배치·배선·
+bitstream 생성과 DRC가 통과했고 내부 100MHz 경로의 route WNS는 `+4.790ns`였다.
+Arty A7-100T `xc7a100t` JTAG programming도 startup status `HIGH`로 성공했다.
+Camera 실측 timing 전이므로 외부 I/O delay는 아직 sign-off하지 않았다.
+
+Windows에서 Vivado 사용자 Tcl app 오류 `Common 17-356`이 발생하면 해당
+프로세스에 `XILINX_LOCAL_USER_DATA=no`를 설정한다. 경로 정규화가 Windows
+known-folder를 잘못 처리하면 build Tcl에는 FPGA 디렉터리, program Tcl에는
+bitstream 절대 경로를 각각 `-tclargs`로 전달한다.
 
 5V 신호를 FPGA GPIO에 직접 연결하지 않는다. Camera 전원을 FPGA GPIO에서 공급하지 않는다.
 
@@ -169,4 +174,13 @@ PIR 반복 입력은 같은 방문에서 새 `event_id`를 만들지 않는다. 
 - 회귀: Windows AMD Vivado 2025.2 XSIM 총 9/9, FPGA Python tests 17/17
 - 합성: 신규 primitive 4개 Artix-7 OOC synthesis 오류·경고 0건, async FIFO distributed RAM 추론 확인
 - 범위: 독립 primitive simulation·OOC synthesis 완료. top 연결·전체 place/route/timing·실물 SCCB/DVP 시험은 미완료
-- 하드웨어 상태: level shifting 또는 보호 저항 준비 전까지 배선 시험 중단
+- 하드웨어 상태: 보호 저항 기반 최소 SCCB probe까지 진행했으며, 아래 최신 진단 결과 판독 대기
+
+### 2026-09-03 OV7670 최소 SCCB 실기 진단
+
+- 사용자 보고 기준 2.1의 저항 보호 배선을 완료했다. level shifter와 측정 장비가 없는 임시 시험이다.
+- Arty A7-100T JTAG target `Digilent/210319B9B31CA`, `xc7a100t` programming 성공
+- 기존 probe 판독: LD4 OFF, LD5 ON, LD6 OFF. PID `0x76` 불일치이며 LD6 OFF는 SCCB 상태 머신 완료만 뜻하고 Camera ACK를 증명하지 않는다.
+- PID `0xFF`, `0x00`, 기타 불일치를 LD5/LD6/LD7로 분류하는 진단 top으로 갱신했다.
+- 최신 진단 bitstream 합성·route·DRC 통과(WNS `+4.790ns`) 및 programming 성공
+- 마지막 상태: 새 bitstream의 LD4~LD7 사용자 판독 대기

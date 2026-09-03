@@ -1,9 +1,14 @@
-set script_dir [file dirname [file normalize [info script]]]
-set fpga_dir [file normalize "$script_dir/.."]
-set rtl_dir [file normalize "$fpga_dir/rtl"]
-set build_dir [file normalize "$fpga_dir/build/ov7670-probe"]
-set report_dir [file normalize "$build_dir/reports"]
-set bitstream_file [file normalize "$build_dir/risk_zero_ov7670_probe.bit"]
+if {$argc > 0} {
+    # An explicit path avoids Windows known-folder normalization surprises.
+    set fpga_dir [lindex $argv 0]
+} else {
+    set script_dir [file dirname [file normalize [info script]]]
+    set fpga_dir [file normalize "$script_dir/.."]
+}
+set rtl_dir [file join $fpga_dir rtl]
+set build_dir [file join $fpga_dir build ov7670-probe]
+set report_dir [file join $build_dir reports]
+set bitstream_file [file join $build_dir risk_zero_ov7670_probe.bit]
 
 file mkdir $report_dir
 create_project -in_memory -part xc7a100tcsg324-1
@@ -14,7 +19,7 @@ read_verilog -sv [list \
     "$rtl_dir/risk_zero_sccb_master.sv" \
     "$rtl_dir/risk_zero_ov7670_id_probe.sv" \
     "$rtl_dir/risk_zero_ov7670_probe_top.sv"]
-read_xdc [list [file normalize "$fpga_dir/constraints/risk_zero_ov7670_probe_arty_a7_100.xdc"]]
+read_xdc [list [file join $fpga_dir constraints risk_zero_ov7670_probe_arty_a7_100.xdc]]
 
 synth_design -top risk_zero_ov7670_probe_top -part xc7a100tcsg324-1
 report_utilization -file [file join $report_dir post_synth_utilization.rpt]
