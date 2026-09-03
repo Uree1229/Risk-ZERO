@@ -115,3 +115,14 @@ PIR 반복 입력은 같은 방문에서 새 `event_id`를 만들지 않는다. 
 - 구현: parameterized 100 MHz → 25 MHz integer divider, disabled LOW
 - PASS: `tb_risk_zero_camera_xclk`, Windows AMD Vivado 2025.2 XSIM
 - 범위: behavioral RTL simulation만 완료. Camera I/O 전압·level shifting·XDC·실측 XCLK는 미완료
+
+### 2026-09-03 팀원 Camera RTL 선별 반영
+
+- 반영: open-drain intent SCCB master, OV7670 PID/VER probe, parameterized YUV422 Y-byte 추출, Gray-pointer async FIFO
+- 수정: OV7670 register read를 `STOP → 새 START`가 있는 두 transmission으로 변경
+- 제외: 실물 검증 전 48-write init table, 전체 candidate XDC/top, 고정 24 MHz/QVGA/SPI pin 계약
+- PASS: `tb_risk_zero_sccb_master`, `tb_risk_zero_ov7670_id_probe`, `tb_risk_zero_camera_yuv422_y_extract`, `tb_risk_zero_async_fifo`
+- 회귀: Windows AMD Vivado 2025.2 XSIM 총 9/9, FPGA Python tests 17/17
+- 합성: 신규 primitive 4개 Artix-7 OOC synthesis 오류·경고 0건, async FIFO distributed RAM 추론 확인
+- 범위: 독립 primitive simulation·OOC synthesis 완료. top 연결·전체 place/route/timing·실물 SCCB/DVP 시험은 미완료
+- 하드웨어 상태: level shifting 또는 보호 저항 준비 전까지 배선 시험 중단

@@ -68,3 +68,31 @@ jobs:
             fpga/arty-a7-100t/rtl/risk_zero_camera_xclk.sv \
             fpga/arty-a7-100t/sim/tb_risk_zero_camera_xclk.sv
           vvp /tmp/tb_xclk
+
+      - name: Simulate camera SCCB master
+        run: |
+          iverilog -g2012 -s tb_risk_zero_sccb_master -o /tmp/tb_sccb \
+            fpga/arty-a7-100t/rtl/risk_zero_sccb_master.sv \
+            fpga/arty-a7-100t/sim/tb_risk_zero_sccb_master.sv
+          vvp /tmp/tb_sccb
+
+      - name: Simulate OV7670 ID probe
+        run: |
+          iverilog -g2012 -s tb_risk_zero_ov7670_id_probe -o /tmp/tb_camera_id \
+            fpga/arty-a7-100t/rtl/risk_zero_ov7670_id_probe.sv \
+            fpga/arty-a7-100t/sim/tb_risk_zero_ov7670_id_probe.sv
+          vvp /tmp/tb_camera_id
+
+      - name: Simulate YUV422 luminance extraction
+        run: |
+          iverilog -g2012 -s tb_risk_zero_camera_yuv422_y_extract -o /tmp/tb_yuv422 \
+            fpga/arty-a7-100t/rtl/risk_zero_camera_yuv422_y_extract.sv \
+            fpga/arty-a7-100t/sim/tb_risk_zero_camera_yuv422_y_extract.sv
+          vvp /tmp/tb_yuv422
+
+      - name: Simulate camera CDC FIFO
+        run: |
+          iverilog -g2012 -s tb_risk_zero_async_fifo -o /tmp/tb_async_fifo \
+            fpga/arty-a7-100t/rtl/risk_zero_async_fifo.sv \
+            fpga/arty-a7-100t/sim/tb_risk_zero_async_fifo.sv
+          vvp /tmp/tb_async_fifo

@@ -138,6 +138,43 @@ class VivadoAssetTests(unittest.TestCase):
         self.assertIn("camera XCLK period is not 40 ns", testbench)
         self.assertIn("disabled camera XCLK was not held low", testbench)
 
+    def test_camera_contribution_is_split_into_verified_primitives(self) -> None:
+        runner = (FPGA_ROOT / "vivado" / "run_rtl_tests.tcl").read_text(encoding="utf-8")
+        sccb = (FPGA_ROOT / "rtl" / "risk_zero_sccb_master.sv").read_text(encoding="utf-8")
+        probe = (FPGA_ROOT / "rtl" / "risk_zero_ov7670_id_probe.sv").read_text(encoding="utf-8")
+        yuv = (FPGA_ROOT / "rtl" / "risk_zero_camera_yuv422_y_extract.sv").read_text(encoding="utf-8")
+        fifo = (FPGA_ROOT / "rtl" / "risk_zero_async_fifo.sv").read_text(encoding="utf-8")
+        synthesis = (FPGA_ROOT / "vivado" / "run_camera_primitive_synthesis.tcl").read_text(
+            encoding="utf-8"
+        )
+
+        for test_top in (
+            "tb_risk_zero_sccb_master",
+            "tb_risk_zero_ov7670_id_probe",
+            "tb_risk_zero_camera_yuv422_y_extract",
+            "tb_risk_zero_async_fifo",
+        ):
+            self.assertIn(test_top, runner)
+
+        self.assertIn("did not emit its PASS marker", runner)
+
+        self.assertIn("ST_ADDRESS_STOP_FREE", sccb)
+        self.assertIn("ST_READ_START_ASSERT", sccb)
+        self.assertIn("siod_drive_low", sccb)
+        self.assertIn("register_address <= 8'h0A", probe)
+        self.assertIn("register_address <= 8'h0B", probe)
+        self.assertNotIn("init_table", probe)
+        self.assertIn("Y_BYTE_PHASE", yuv)
+        self.assertIn('ASYNC_REG = "TRUE"', fifo)
+        self.assertIn("xc7a100tcsg324-1", synthesis)
+        for top_module in (
+            "risk_zero_sccb_master",
+            "risk_zero_ov7670_id_probe",
+            "risk_zero_camera_yuv422_y_extract",
+            "risk_zero_async_fifo",
+        ):
+            self.assertIn(top_module, synthesis)
+
     def test_tcl_files_have_balanced_delimiters(self) -> None:
         for script_path in (FPGA_ROOT / "vivado").glob("*.tcl"):
             script = script_path.read_text(encoding="utf-8")

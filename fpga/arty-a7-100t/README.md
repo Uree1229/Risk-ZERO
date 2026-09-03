@@ -2,7 +2,7 @@
 
 현재 구조는 외부 Parallel DVP Camera를 FPGA에 직접 연결하고, 항상 동작하는 Safety Domain과 이벤트 기반 Vision Domain을 분리한다. 기준 문서는 [2026-08-28 하드웨어 아키텍처](../../docs/RISK-ZERO_하드웨어_아키텍처_2026-08-28.md)와 [직접 Camera 구동 순서](DIRECT_CAMERA_BRINGUP.md)다.
 
-현재 추가된 `risk_zero_camera_dvp_rx.sv`는 PCLK domain의 GRAY8 byte·frame geometry 수신 골격이며, `risk_zero_safety_gate_fsm.sv`는 Door Hub toggle과 Reed·Tamper·E-stop을 직접 검사한다. Camera 모델·핀·SCCB·CDC·DVP-to-motion 연결은 아직 미구현이다.
+현재 `risk_zero_camera_dvp_rx.sv`는 PCLK domain의 GRAY8 byte·frame geometry 수신 골격이며, `risk_zero_safety_gate_fsm.sv`는 Door Hub toggle과 Reed·Tamper·E-stop을 직접 검사한다. SCCB register read/write, OV7670 PID/VER probe, YUV422 Y 추출과 async FIFO는 독립 RTL simulation과 Artix-7 OOC synthesis를 통과했지만 Camera top·핀·전체 timing·DVP-to-motion 연결과 실물 시험은 아직 미완료다.
 
 ## 이전 UDP 참고 구현
 
@@ -66,6 +66,7 @@ ESP32-CAM과 Arty는 같은 공유기에 연결한다. ESP32-CAM은 Wi-Fi, Arty 
 
 ```powershell
 vivado -mode batch -source fpga/arty-a7-100t/vivado/run_rtl_tests.tcl
+vivado -mode batch -source fpga/arty-a7-100t/vivado/run_camera_primitive_synthesis.tcl
 vivado -mode batch -source fpga/arty-a7-100t/vivado/create_arty_bram_system.tcl
 vivado -mode batch -source fpga/arty-a7-100t/vivado/build_arty_system.tcl
 vivado -mode batch -source fpga/arty-a7-100t/vivado/create_arty_ddr_system.tcl
