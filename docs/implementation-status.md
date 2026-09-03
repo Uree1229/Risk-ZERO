@@ -22,7 +22,7 @@
 | Safety Gate | auth/request/heartbeat toggle, 2-FF sync, auth 만료·1회 소비, Reed·Tamper·E-stop, pulse 상한 RTL과 self-checking Icarus·Vivado XSIM 통과 | 보드 미검증 |
 | DVP RX | Camera PCLK domain GRAY8 byte·좌표·frame geometry 정상/오류 Icarus·Vivado XSIM 통과 | Camera·핀·XDC·ILA 미검증 |
 | Motion core | background difference, threshold, count·sum·bbox 기존 RTL | DVP stream 직접 연결 미구현 |
-| Camera control | 요구 신호와 시험 순서 문서화 | 모델 미정, XCLK/SCCB/PWDN/RESET·async FIFO 미구현 |
+| Camera control | Voltly `VLT-CAM003` OV7670 실물 식별, parameterized 25 MHz XCLK RTL·Vivado XSIM 통과 | 모듈 I/O 전압·level shifting·핀 미확정, SCCB/PWDN/RESET·async FIFO 미구현 |
 | Vision 기능 | 기존 중심점·동선 정책 DEMO 유지 | 3×3 zone·timeline·B_end·Snapshot의 FPGA 통합 미구현 |
 | Door Hub | C++ 상태 코어와 Python 기준 구현, event id·stale result·LED Safety 불변식 작성 | PIR·SPI·GPIO·Wi-Fi 어댑터 미작성 |
 | Result/Snapshot link | packet 필드 초안 | SPI register·CRC·DATA_READY 미결정·미구현 |
@@ -45,14 +45,15 @@
 - GitHub Actions Icarus Verilog에서 motion core·AXI wrapper·새 Safety Gate·DVP RX simulation 통과
 - 성공 run: <https://github.com/Uree1229/Risk-ZERO/actions/runs/33165372737>
 - Windows Vivado 2025.2에서 motion core·AXI wrapper·새 Safety Gate·DVP RX XSIM 4개 통과(2026-09-03, 기준 commit `f3a7619`)
+- 같은 환경에서 parameterized 25 MHz Camera XCLK testbench 통과
 - 새 구조의 Block Design·합성·timing은 미실행
 - 실제 Camera와 Arty board 미연결
 - Edge 전체 45개, 웹 13개, 모바일 24개 테스트와 SQLite schema 검사 통과
 
 ## 다음 우선순위
 
-1. Parallel DVP Camera 모델·모듈 회로도·전압·핀맵·출력 포맷을 확정한다.
-2. XCLK·SCCB Camera ID·PCLK·VSYNC·HREF와 frame geometry를 측정한다.
+1. `VLT-CAM003` 모듈 I/O 전압·level shifting·Arty 핀맵·출력 포맷을 확정한다.
+2. XCLK를 실측하고 SCCB Camera ID·PCLK·VSYNC·HREF와 frame geometry를 측정한다.
 3. Camera controller, grayscale와 async pixel FIFO를 구현한다.
 4. DVP stream을 motion core에 연결하고 `B_ref`를 검증한다.
 5. noise filter·3×3 zone·timeline·B_end·Snapshot buffer를 구현한다.

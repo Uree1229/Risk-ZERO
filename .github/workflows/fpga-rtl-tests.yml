@@ -61,3 +61,10 @@ jobs:
             fpga/arty-a7-100t/rtl/risk_zero_camera_dvp_rx.sv \
             fpga/arty-a7-100t/sim/tb_risk_zero_camera_dvp_rx.sv
           vvp /tmp/tb_dvp
+
+      - name: Simulate camera XCLK
+        run: |
+          iverilog -g2012 -s tb_risk_zero_camera_xclk -o /tmp/tb_xclk \
+            fpga/arty-a7-100t/rtl/risk_zero_camera_xclk.sv \
+            fpga/arty-a7-100t/sim/tb_risk_zero_camera_xclk.sv
+          vvp /tmp/tb_xclk

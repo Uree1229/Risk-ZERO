@@ -33,7 +33,7 @@ FPGA는 상시 구성 상태다. Safety Domain은 영상과 독립적으로 항�
 | DVP RX | PCLK domain GRAY8 byte·좌표·frame geometry RTL·Icarus·Vivado XSIM 통과 |
 | Motion core | 배경 차분·threshold·bbox 누적 기존 RTL, DVP 직접 연결 전 |
 | Door Hub | C++ 상태 코어와 Python `door-hub-event/1` 기준 구현 작성, 실제 pin/SPI adapter 전 |
-| Camera | 모델·전압·핀맵 미결정, controller/SCCB/CDC 미구현 |
+| Camera | Voltly `VLT-CAM003` OV7670 실물 식별, 25 MHz XCLK RTL·Vivado XSIM 통과. 모듈 I/O 전압·핀맵·SCCB/CDC 미완료 |
 | Result/Snapshot | SPI 계약·buffer·Door Hub 중계 미구현 |
 | 웹·모바일 | Door Hub 상태 화면, D1 API·seed, 모바일 SQLite v5 구현, 실제 하드웨어 미연결 |
 | AV 검증 | 정책 DEMO 유지, 실제 AI 미연결 |

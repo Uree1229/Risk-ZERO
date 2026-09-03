@@ -122,6 +122,22 @@ class VivadoAssetTests(unittest.TestCase):
         self.assertIn("valid frame geometry was not accepted", testbench)
         self.assertIn("malformed frame geometry was not rejected", testbench)
 
+    def test_camera_xclk_is_parameterized_disabled_low_and_simulated(self) -> None:
+        rtl = (FPGA_ROOT / "rtl" / "risk_zero_camera_xclk.sv").read_text(encoding="utf-8")
+        runner = (FPGA_ROOT / "vivado" / "run_rtl_tests.tcl").read_text(encoding="utf-8")
+        testbench = (FPGA_ROOT / "sim" / "tb_risk_zero_camera_xclk.sv").read_text(encoding="utf-8")
+        for required in (
+            "SYS_CLK_HZ",
+            "XCLK_HZ",
+            "HALF_PERIOD_CYCLES",
+            "if (!resetn || !enable)",
+            "cam_xclk <= 0",
+        ):
+            self.assertIn(required, rtl)
+        self.assertIn("tb_risk_zero_camera_xclk", runner)
+        self.assertIn("camera XCLK period is not 40 ns", testbench)
+        self.assertIn("disabled camera XCLK was not held low", testbench)
+
     def test_tcl_files_have_balanced_delimiters(self) -> None:
         for script_path in (FPGA_ROOT / "vivado").glob("*.tcl"):
             script = script_path.read_text(encoding="utf-8")

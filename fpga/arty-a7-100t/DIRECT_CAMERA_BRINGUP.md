@@ -14,6 +14,8 @@
 - 출력 포맷과 해상도
 - 사용할 Arty header와 실제 핀맵
 
+현재 확보된 실물은 Device Mart에서 판매하는 Voltly `VLT-CAM003` OV7670 모듈이다. 사진상 FIFO 메모리가 없는 18-pin Parallel DVP 보드이며 `3.3V`, `GND`, `SIOC`, `SIOD`, `VS`, `HS`, `PCLK`, `XCLK`, `D[7:0]`, `RESET`, `PWDN` 표기가 확인됐다. 판매 페이지에 모듈 회로도와 I/O 전압 자료가 없으므로 Arty 연결 전 내부 I/O 전압 측정 또는 FPGA→Camera 레벨 변환이 필요하다.
+
 ## 1. Safety Domain 독립 검증
 
 ```powershell
@@ -55,6 +57,8 @@ Safety test가 실패하면 Camera 연결을 진행하지 않는다.
 - Vision disabled: pixel 무시
 
 현재 수신기는 Camera PCLK domain의 GRAY8 byte capture만 담당한다. 카메라가 YUV/RGB를 출력하면 별도 unpack/grayscale 단계가 필요하다. processing clock으로 전달할 때는 asynchronous FIFO를 추가한다.
+
+`risk_zero_camera_xclk`는 100 MHz system clock에서 정확히 분주되는 25 MHz 기본 XCLK와 disable 시 LOW 출력을 제공한다. 이는 simulation 단계의 구현값이며, 레벨 변환·핀 배치·실측 파형이 확인되기 전에는 Camera 연결 완료로 간주하지 않는다.
 
 ## 4. ILA 시험
 
@@ -104,3 +108,10 @@ PIR 반복 입력은 같은 방문에서 새 `event_id`를 만들지 않는다. 
 - 명령: `vivado -mode batch -source fpga/arty-a7-100t/vivado/run_rtl_tests.tcl`
 - PASS: `tb_risk_zero_motion_core`, `tb_risk_zero_motion_axi_lite`, `tb_risk_zero_safety_gate_fsm`, `tb_risk_zero_camera_dvp_rx`
 - 범위: behavioral RTL simulation만 완료. 새 DVP Block Design·합성·timing·실물 Camera/Arty 시험은 미완료
+
+### 2026-09-03 Camera XCLK simulation
+
+- Camera 후보 확정: Voltly `VLT-CAM003`, OV7670, FIFO 없음
+- 구현: parameterized 100 MHz → 25 MHz integer divider, disabled LOW
+- PASS: `tb_risk_zero_camera_xclk`, Windows AMD Vivado 2025.2 XSIM
+- 범위: behavioral RTL simulation만 완료. Camera I/O 전압·level shifting·XDC·실측 XCLK는 미완료
