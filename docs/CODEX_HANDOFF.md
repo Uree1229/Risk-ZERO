@@ -1,6 +1,6 @@
 # RISK-ZERO 새 PC·Codex 인수인계
 
-- 기준일: 2026-08-28
+- 기준일: 2026-09-03
 - GitHub: <https://github.com/Uree1229/Risk-ZERO>
 - 브랜치: `main`
 - 단계: 새 하드웨어 아키텍처 채택, RTL 골격 작성, 실장 통합 전
@@ -29,8 +29,8 @@ FPGA는 상시 구성 상태다. Safety Domain은 영상과 독립적으로 항�
 
 | 영역 | 상태 |
 | --- | --- |
-| Safety Gate | toggle auth/request/heartbeat, Reed·Tamper·E-stop, auth 만료·소비, pulse 상한 RTL·Icarus simulation 통과 |
-| DVP RX | PCLK domain GRAY8 byte·좌표·frame geometry RTL·Icarus simulation 통과 |
+| Safety Gate | toggle auth/request/heartbeat, Reed·Tamper·E-stop, auth 만료·소비, pulse 상한 RTL·Icarus·Vivado XSIM 통과 |
+| DVP RX | PCLK domain GRAY8 byte·좌표·frame geometry RTL·Icarus·Vivado XSIM 통과 |
 | Motion core | 배경 차분·threshold·bbox 누적 기존 RTL, DVP 직접 연결 전 |
 | Door Hub | C++ 상태 코어와 Python `door-hub-event/1` 기준 구현 작성, 실제 pin/SPI adapter 전 |
 | Camera | 모델·전압·핀맵 미결정, controller/SCCB/CDC 미구현 |
@@ -38,7 +38,7 @@ FPGA는 상시 구성 상태다. Safety Domain은 영상과 독립적으로 항�
 | 웹·모바일 | Door Hub 상태 화면, D1 API·seed, 모바일 SQLite v5 구현, 실제 하드웨어 미연결 |
 | AV 검증 | 정책 DEMO 유지, 실제 AI 미연결 |
 
-Python FPGA asset/reference 테스트 15개와 GitHub Actions Icarus Verilog의 motion·AXI·Safety·DVP simulation이 통과했다. 소프트웨어는 Edge 45개, 웹 13개, 모바일 24개 테스트와 SQLite schema 검사를 통과했다. AMD Vivado XSIM·합성·timing과 실물 Camera/Arty 검증은 별도로 남아 있다.
+Python FPGA asset/reference 테스트 15개, GitHub Actions Icarus Verilog와 Windows Vivado 2025.2 XSIM의 motion·AXI·Safety·DVP simulation이 통과했다. 소프트웨어는 Edge 45개, 웹 13개, 모바일 24개 테스트와 SQLite schema 검사를 통과했다. 새 구조의 Block Design·합성·timing과 실물 Camera/Arty 검증은 별도로 남아 있다.
 
 ## 이전 구현의 위치
 
@@ -68,16 +68,14 @@ python -m unittest discover -s fpga/arty-a7-100t/tests -v
 
 ## 다음 작업 순서
 
-1. Vivado에서 새 Safety Gate와 DVP RX testbench 실행
-2. Safety test 결과에 맞춰 RTL 오류 수정
-3. 외부 DVP Camera 모델·모듈 회로도·전압·핀맵 확정
-4. XCLK·SCCB ID·PCLK/VSYNC/HREF를 장비로 확인
-5. Camera controller, format unpack/grayscale와 async FIFO 구현
-6. 기존 motion core를 DVP stream에 연결
-7. 3×3 zone, timeline, B_end 비교와 Snapshot buffer 구현
-8. Door Hub PIR event와 SPI result link 구현
-9. LED로 수직 통합
-10. 앱 결과·Snapshot 연결
+1. 외부 DVP Camera 모델·모듈 회로도·전압·핀맵 확정
+2. XCLK·SCCB ID·PCLK/VSYNC/HREF를 장비로 확인
+3. Camera controller, format unpack/grayscale와 async FIFO 구현
+4. 기존 motion core를 DVP stream에 연결
+5. 3×3 zone, timeline, B_end 비교와 Snapshot buffer 구현
+6. Door Hub PIR event와 SPI result link 구현
+7. LED로 수직 통합
+8. 앱 결과·Snapshot 연결
 
 ## 새 Codex에 전달할 문장
 

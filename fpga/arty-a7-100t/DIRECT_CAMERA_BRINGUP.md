@@ -96,3 +96,11 @@ PIR 반복 입력은 같은 방문에서 새 `event_id`를 만들지 않는다. 
 ## 통과 기록
 
 실험마다 commit SHA, Vivado 버전, Camera 모델, 모듈 회로도 revision, 핀맵, 해상도·포맷·PCLK, WNS, LUT/FF/BRAM/DSP, latency, 측정 장비와 결과를 Markdown으로 남긴다. 코드 작성과 simulation, 합성, 실물 시험을 별도로 표시한다.
+
+### 2026-09-03 RTL simulation
+
+- 기준 commit: `f3a7619`
+- 도구: AMD Vivado 2025.2 XSIM, Windows
+- 명령: `vivado -mode batch -source fpga/arty-a7-100t/vivado/run_rtl_tests.tcl`
+- PASS: `tb_risk_zero_motion_core`, `tb_risk_zero_motion_axi_lite`, `tb_risk_zero_safety_gate_fsm`, `tb_risk_zero_camera_dvp_rx`
+- 범위: behavioral RTL simulation만 완료. 새 DVP Block Design·합성·timing·실물 Camera/Arty 시험은 미완료

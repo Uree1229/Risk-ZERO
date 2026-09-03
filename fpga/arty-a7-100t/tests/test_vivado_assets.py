@@ -13,10 +13,12 @@ class VivadoAssetTests(unittest.TestCase):
             "local_mem {128KB}",
             "set_property range 0x00040000",
             "axi_ethernetlite",
+            "CONFIG.C_INCLUDE_MDIO {1}",
             "axi_timer",
             "axi_uartlite",
             "risk_zero_motion",
             'board_interface "eth_mii"',
+            'board_interface "eth_mdio_mdc"',
             'board_interface "usb_uart"',
             "CLKOUT2_REQUESTED_OUT_FREQ {25.000}",
         ):

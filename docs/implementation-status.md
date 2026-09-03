@@ -1,6 +1,6 @@
 # RISK-ZERO 현재 구현 현황
 
-- 기준일: 2026-08-28
+- 기준일: 2026-09-03
 - 범위: 대학 캡스톤 MVP
 - 현재 아키텍처: ESP32-S3 Door Hub + 외부 Parallel DVP Camera + Arty A7 Safety/Vision Domain
 - 유지 기능: 웹·모바일 동선 DEMO와 음성·입모양 검증 정책 DEMO
@@ -19,8 +19,8 @@
 
 | 영역 | source·PC 상태 | 실장 상태 |
 | --- | --- | --- |
-| Safety Gate | auth/request/heartbeat toggle, 2-FF sync, auth 만료·1회 소비, Reed·Tamper·E-stop, pulse 상한 RTL과 self-checking Icarus simulation 통과 | Vivado 재검증·보드 미검증 |
-| DVP RX | Camera PCLK domain GRAY8 byte·좌표·frame geometry 정상/오류 Icarus simulation 통과 | Camera·핀·XDC·ILA 미검증 |
+| Safety Gate | auth/request/heartbeat toggle, 2-FF sync, auth 만료·1회 소비, Reed·Tamper·E-stop, pulse 상한 RTL과 self-checking Icarus·Vivado XSIM 통과 | 보드 미검증 |
+| DVP RX | Camera PCLK domain GRAY8 byte·좌표·frame geometry 정상/오류 Icarus·Vivado XSIM 통과 | Camera·핀·XDC·ILA 미검증 |
 | Motion core | background difference, threshold, count·sum·bbox 기존 RTL | DVP stream 직접 연결 미구현 |
 | Camera control | 요구 신호와 시험 순서 문서화 | 모델 미정, XCLK/SCCB/PWDN/RESET·async FIFO 미구현 |
 | Vision 기능 | 기존 중심점·동선 정책 DEMO 유지 | 3×3 zone·timeline·B_end·Snapshot의 FPGA 통합 미구현 |
@@ -44,21 +44,20 @@
 - FPGA Python protocol/reference/asset 테스트 15개 통과
 - GitHub Actions Icarus Verilog에서 motion core·AXI wrapper·새 Safety Gate·DVP RX simulation 통과
 - 성공 run: <https://github.com/Uree1229/Risk-ZERO/actions/runs/33165372737>
-- 새 RTL source와 testbench가 Vivado runner에도 포함됨
-- 현재 PC 셸에는 Vivado가 없어 AMD XSIM 재실행과 새 구조 합성은 미실행
+- Windows Vivado 2025.2에서 motion core·AXI wrapper·새 Safety Gate·DVP RX XSIM 4개 통과(2026-09-03, 기준 commit `f3a7619`)
+- 새 구조의 Block Design·합성·timing은 미실행
 - 실제 Camera와 Arty board 미연결
 - Edge 전체 45개, 웹 13개, 모바일 24개 테스트와 SQLite schema 검사 통과
 
 ## 다음 우선순위
 
-1. Vivado XSIM에서 `run_rtl_tests.tcl`을 실행해 Icarus와 별도로 재검증한다.
-2. Parallel DVP Camera 모델·모듈 회로도·전압·핀맵·출력 포맷을 확정한다.
-3. XCLK·SCCB Camera ID·PCLK·VSYNC·HREF와 frame geometry를 측정한다.
-4. Camera controller, grayscale와 async pixel FIFO를 구현한다.
-5. DVP stream을 motion core에 연결하고 `B_ref`를 검증한다.
-6. noise filter·3×3 zone·timeline·B_end·Snapshot buffer를 구현한다.
-7. Door Hub 상태 코어에 PIR·Safety GPIO·Vision SPI·Wi-Fi 어댑터를 연결한다.
-8. LED로 전체 경로를 통합하고 실제 result/Snapshot을 현재 API에 전송한다.
+1. Parallel DVP Camera 모델·모듈 회로도·전압·핀맵·출력 포맷을 확정한다.
+2. XCLK·SCCB Camera ID·PCLK·VSYNC·HREF와 frame geometry를 측정한다.
+3. Camera controller, grayscale와 async pixel FIFO를 구현한다.
+4. DVP stream을 motion core에 연결하고 `B_ref`를 검증한다.
+5. noise filter·3×3 zone·timeline·B_end·Snapshot buffer를 구현한다.
+6. Door Hub 상태 코어에 PIR·Safety GPIO·Vision SPI·Wi-Fi 어댑터를 연결한다.
+7. LED로 전체 경로를 통합하고 실제 result/Snapshot을 현재 API에 전송한다.
 
 ## 주장하지 않는 범위
 

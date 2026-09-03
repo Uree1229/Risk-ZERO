@@ -37,7 +37,7 @@ Reed #2 · Tamper · E-stop ───────┴→ Arty Safety Domain → �
 
 ## 구현 경계
 
-현재 DVP RX와 새 Safety 계약은 GitHub Actions Icarus Verilog simulation까지 통과했습니다. 새 아키텍처 기준 AMD Vivado XSIM·Block Design·합성·실물 보드 통합은 아직 수행하지 않았습니다.
+현재 DVP RX와 새 Safety 계약은 GitHub Actions Icarus Verilog simulation과 Windows Vivado 2025.2 XSIM을 통과했습니다. 새 아키텍처 기준 Block Design·합성·실물 Camera/Arty 통합은 아직 수행하지 않았습니다.
 
 이전 XIAO ESP32-S3 Sense/AI Thinker ESP32-CAM → RZFP UDP → MicroBlaze Ethernet 경로는 참고 구현으로 저장소에 남겨둡니다. 해당 구조의 Vivado/Vitis PC build 결과가 새 외부 Camera 직접 입력 구조를 검증한 것은 아닙니다.
 

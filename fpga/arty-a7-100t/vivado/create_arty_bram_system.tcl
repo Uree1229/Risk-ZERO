@@ -197,10 +197,11 @@ foreach generated_reset [get_bd_ports -quiet reset*] {
 set ethernet [create_bd_cell -type ip -vlnv [latest_ip "xilinx.com:ip:axi_ethernetlite:*"] axi_ethernetlite_0]
 set_property -dict [list \
     CONFIG.C_INCLUDE_INTERNAL_LOOPBACK {0} \
-    CONFIG.C_INCLUDE_MDIO {0} \
+    CONFIG.C_INCLUDE_MDIO {1} \
     CONFIG.C_RX_PING_PONG {1} \
     CONFIG.C_TX_PING_PONG {1}] $ethernet
 apply_board_connection -board_interface "eth_mii" -ip_intf "axi_ethernetlite_0/MII" -diagram $design_name
+apply_board_connection -board_interface "eth_mdio_mdc" -ip_intf "axi_ethernetlite_0/MDIO" -diagram $design_name
 
 set timer [create_bd_cell -type ip -vlnv [latest_ip "xilinx.com:ip:axi_timer:*"] axi_timer_0]
 set_property -dict [list CONFIG.enable_timer2 {0}] $timer
